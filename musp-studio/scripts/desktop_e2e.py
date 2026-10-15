@@ -107,7 +107,7 @@ with sync_playwright() as pw:
         assert "DE AD BE EF".replace(" ", "") == "".join(page.locator(".hex-grid button").all_text_contents())
         assert page.locator(".packet-inspector").get_by_text("解析失败", exact=False).count() or page.get_by_text("解析失败", exact=True).count()
         page.locator("button.packet-row").filter(has=page.locator("code", has_text="04")).first.click()
-        page.locator("#hex-byte-0").click()
+        page.locator("[data-byte-index='0']").click()
         assert page.locator(".selected-field").is_visible()
         assert page.locator(".hex-grid button.highlighted").count() > 0
         page.locator(".packet-inspector .ant-table-tbody tr[data-row-key]").nth(1).click()

@@ -191,6 +191,11 @@ impl Studio {
             packet.project_id.clone()
         };
         let current = project == self.project() && !packet.cancel.is_cancelled();
+        let mut context = if packet.direction == Direction::Tx {
+            packet.context.clone()
+        } else {
+            None
+        };
         let schema = self.schema(&packet.protocol_id).or_else(|_| {
             self.db
                 .protocol_source(&packet.protocol_id)
@@ -205,7 +210,10 @@ impl Studio {
                 if current {
                     self.remember_secrets(&d);
                 }
-                if current && packet.direction == Direction::Rx {
+                if current
+                    && packet.direction == Direction::Rx
+                    && crate::flow_host::is_musp_protocol(&d.protocol_id)
+                {
                     let reply = {
                         let mut peers = self.peers.lock().unwrap();
                         if let Some(peer) = peers.get_mut(&packet.endpoint_id) {
@@ -251,6 +259,15 @@ impl Studio {
                 } else {
                     json!({"ignored":"端点已停止或项目已切换"})
                 };
+                if packet.direction == Direction::Rx {
+                    context = routing["runId"]
+                        .as_str()
+                        .zip(routing["nodeId"].as_str())
+                        .map(|(run_id, node_id)| crate::network::PacketContext {
+                            run_id: run_id.into(),
+                            node_id: node_id.into(),
+                        });
+                }
                 let mut tree = serde_json::to_value(&d).map_err(|e| e.to_string())?;
                 tree["routing"] = routing;
                 // Redaction is applied to both raw bytes and every decoded representation before persistence.
@@ -313,22 +330,25 @@ impl Studio {
         } else {
             "TX"
         };
-        let id = self.db.insert_packet(&PacketInsert {
-            project_id: &project,
-            timestamp: packet.timestamp,
-            direction,
-            endpoint_id: &packet.endpoint_id,
-            remote: &packet.remote,
-            protocol_id: &packet.protocol_id,
-            msg_code: code,
-            length: packet.bytes.len(),
-            hex: &raw,
-            status,
-            decoded: &tree,
-        })?;
+        let id = self.db.insert_packet_with_context(
+            &PacketInsert {
+                project_id: &project,
+                timestamp: packet.timestamp,
+                direction,
+                endpoint_id: &packet.endpoint_id,
+                remote: &packet.remote,
+                protocol_id: &packet.protocol_id,
+                msg_code: code,
+                length: packet.bytes.len(),
+                hex: &raw,
+                status,
+                decoded: &tree,
+            },
+            context.as_ref(),
+        )?;
         self.processed_packets.fetch_add(1, Ordering::Relaxed);
         Ok(
-            json!({"id":id.to_string(),"timestamp":packet.timestamp,"direction":direction,"endpointId":packet.endpoint_id,"remote":packet.remote,"length":packet.bytes.len(),"hex":raw,"status":status,"decoded":tree}),
+            json!({"id":id.to_string(),"timestamp":packet.timestamp,"direction":direction,"endpointId":packet.endpoint_id,"remote":packet.remote,"msgCode":code,"length":packet.bytes.len(),"hex":raw,"status":status,"decoded":tree,"runId":context.as_ref().map(|c|&c.run_id),"nodeId":context.as_ref().map(|c|&c.node_id)}),
         )
     }
     pub async fn request(self: &Arc<Self>, r: Value) -> Result<Value, String> {
@@ -521,6 +541,8 @@ impl Studio {
                 }
                 Ok(json!(p))
             }
+            "protocol_catalog" => self.protocol_catalog(required(&r, "protocolId")?),
+            "flow_preview" => self.preview_flow_node(&r),
             "protocol_encode" | "protocol_decode" => {
                 let schema = if let Some(xml) = r["xml"].as_str() {
                     Arc::new(compile_xml(xml).map_err(|e| e.to_string())?)
@@ -553,7 +575,12 @@ impl Studio {
                     return Err("故障延迟不能超过60000毫秒".into());
                 }
                 let protocol_id = required(&r, "protocolId")?;
-                self.schema(protocol_id)?;
+                let schema = self.schema(protocol_id)?;
+                if r["virtualPeer"].as_bool() == Some(true)
+                    && !crate::flow_host::is_musp_protocol(&schema.id)
+                {
+                    return Err("内置虚拟对端仅支持明确启用的MUSP协议（musp-v08 / musp-demo）；其他协议请连接实际UDP对端".into());
+                }
                 let ep = self
                     .udp
                     .start_scoped(
@@ -591,7 +618,7 @@ impl Studio {
                     json!({"sent":count,"timestamp":now_ms(),"status":"本地发送成功，尚未确认业务结果"}),
                 )
             }
-            "packet_query" => self.db.packets_filtered(
+            "packet_query" => self.db.packets_scoped(
                 &project,
                 r["offset"].as_u64().unwrap_or(0),
                 r["limit"].as_u64().unwrap_or(100),
@@ -600,6 +627,10 @@ impl Studio {
                     .as_str()
                     .filter(|d| ["RX", "TX"].contains(d))
                     .unwrap_or(""),
+                crate::persistence::PacketScope {
+                    run_id: r["runId"].as_str(),
+                    endpoint_id: r["endpointId"].as_str(),
+                },
             ),
             "export" => self.export(&r),
             "project_import" => self.import_project(required(&r, "path")?),

@@ -1,6 +1,6 @@
 use crate::{
     application::Studio,
-    network::{Datagram, Direction, now_ms},
+    network::{Datagram, Direction, PacketContext, now_ms},
     packet_business::{addr, apply_async, apply_matched, n},
     protocol::DecodedPacket,
     runtime::*,
@@ -51,9 +51,34 @@ pub struct WireBinding {
     pub system_id: String,
     pub session_record_id: Option<String>,
 }
+/// Existing MUSP domain behavior is an explicit protocol identity opt-in.
+pub(crate) fn is_musp_protocol(id: &str) -> bool {
+    matches!(id, "musp-v08" | "musp-demo")
+}
+fn decoded_transaction(decoded: &DecodedPacket) -> Result<Option<u32>, String> {
+    fn collect<'a>(fields: &'a [crate::protocol::DecodedField], found: &mut Vec<&'a Value>) {
+        for field in fields {
+            if field.path.starts_with("header.") && field.path.ends_with(".transactionId") {
+                found.push(&field.decoded_value);
+            }
+            collect(&field.children, found);
+        }
+    }
+    let mut found = Vec::new();
+    collect(&decoded.fields, &mut found);
+    match found.as_slice() {
+        [] => Ok(None),
+        [value] => crate::packet_business::number(value)
+            .and_then(|number| u32::try_from(number).ok())
+            .map(Some)
+            .ok_or_else(|| "头部事务号超出32位匹配范围或不是整数".into()),
+        _ => Err("存在多个头部transactionId字段，无法唯一推导关联事务".into()),
+    }
+}
 pub fn meta(packet: &Datagram, decoded: &DecodedPacket) -> PacketMeta {
     let h = &decoded.values["header"];
     let b = &decoded.values["body"];
+    let transaction = decoded_transaction(decoded);
     PacketMeta {
         endpoint_id: packet.endpoint_id.clone(),
         protocol_version_id: packet.protocol_id.clone(),
@@ -61,8 +86,8 @@ pub fn meta(packet: &Datagram, decoded: &DecodedPacket) -> PacketMeta {
         msg_code: decoded.message_code,
         src_addr: addr(&h["srcAddr"]),
         dst_addr: addr(&h["dstAddr"]),
-        transaction_id: Some(n(h, "transactionId") as u32),
-        session_id: Some(n(h, "sessionId") as u16),
+        transaction_id: transaction.as_ref().ok().copied().flatten(),
+        session_id: h.get("sessionId").map(|_| n(h, "sessionId") as u16),
         call_id: b.get("callId").map(|_| n(b, "callId") as u16),
         resource_id: b.get("resourceId").map(|_| n(b, "resourceId") as u16),
         direction: b.get("direction").map(|_| n(b, "direction") as u8),
@@ -75,7 +100,7 @@ pub fn meta(packet: &Datagram, decoded: &DecodedPacket) -> PacketMeta {
             .map(|o| o.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
             .unwrap_or_default(),
         payload: decoded.values.clone(),
-        valid: true,
+        valid: transaction.is_ok(),
     }
 }
 
@@ -109,13 +134,14 @@ impl Studio {
         if packet.direction != Direction::Rx {
             return Ok(Value::Null);
         }
-        if matches!(decoded.message_code, 0x73 | 0x7B) {
+        let musp = is_musp_protocol(&decoded.protocol_id);
+        if musp && matches!(decoded.message_code, 0x73 | 0x7B) {
             return Ok(
                 json!({"match":{"type":"ASYNC"},"business":self.handle_call_request(packet,decoded)
                 .unwrap_or_else(|error|json!({"error":error}))}),
             );
         }
-        let incoming_key = if matches!(decoded.message_code, 0x60 | 0x65) {
+        let incoming_key = if musp && matches!(decoded.message_code, 0x60 | 0x65) {
             let peer = format!(
                 "{}|{}|{}",
                 packet.endpoint_id, packet.protocol_id, packet.remote
@@ -135,7 +161,7 @@ impl Studio {
             None
         };
         let meta = meta(packet, decoded);
-        let (outcome, mut actions, context) = {
+        let (outcome, mut actions, context, packet_context) = {
             let mut x = self.execution.lock().unwrap();
             let (outcome, actions) = x.engine.on_packet(&meta, now_ms());
             if let (Some(key), MatchOutcome::Matched(id)) = (&incoming_key, &outcome) {
@@ -151,14 +177,28 @@ impl Studio {
             } else {
                 None
             };
-            (outcome, actions, context)
+            let packet_context = if let MatchOutcome::Matched(id) = &outcome {
+                x.engine
+                    .pending
+                    .requests
+                    .get(id)
+                    .map(|pending| PacketContext {
+                        run_id: pending.run_id.clone(),
+                        node_id: pending.wait_node_id.clone(),
+                    })
+            } else {
+                None
+            };
+            (outcome, actions, context, packet_context)
         };
-        let run_id = context.as_ref().map(|c| c.run_id.clone());
+        let run_id = packet_context.as_ref().map(|c| c.run_id.clone());
         let peer = format!(
             "{}|{}|{}",
             packet.endpoint_id, packet.protocol_id, packet.remote
         );
-        let result = if let Some(context) = context {
+        let result = if !musp {
+            Ok(Value::Null)
+        } else if let Some(context) = context {
             let mut domain = self.domain.lock().unwrap();
             let mut candidate = domain.clone();
             let result = apply_matched(
@@ -287,7 +327,9 @@ impl Studio {
                 app.execute_actions(actions).await;
             });
         }
-        Ok(json!({"match":outcome,"business":result.unwrap_or_else(|e|json!({"error":e}))}))
+        Ok(
+            json!({"match":outcome,"business":result.unwrap_or_else(|e|json!({"error":e})),"runId":packet_context.as_ref().map(|c|&c.run_id),"nodeId":packet_context.as_ref().map(|c|&c.node_id)}),
+        )
     }
     pub async fn execute_actions(self: &Arc<Self>, actions: Vec<FlowAction>) {
         let mut queue: VecDeque<_> = actions.into();
@@ -457,14 +499,30 @@ impl Studio {
             return Err("流程协议版本与端点绑定版本不一致".into());
         }
         let schema = self.schema(&send.protocol_version_id)?;
+        let mut values = send.values.clone();
+        if send.automatic_transaction {
+            let transaction = values
+                .as_object_mut()
+                .and_then(|v| v.remove("transactionId"));
+            if schema
+                .messages
+                .iter()
+                .find(|m| m.code == send.msg_code)
+                .is_some_and(|message| {
+                    crate::flow_preview::needs_header_transaction(&schema, message, &values)
+                })
+                && let Some(transaction) = transaction
+            {
+                values["transactionId"] = transaction;
+            }
+        }
         let bytes = schema
-            .encode(send.msg_code, &send.values)
+            .encode(send.msg_code, &values)
             .map_err(|e| e.to_string())?;
         let decoded = schema.decode(&bytes).map_err(|e| e.to_string())?;
+        let musp = is_musp_protocol(&schema.id);
         self.remember_secrets(&decoded);
-        if schema.id.to_ascii_lowercase().starts_with("musp")
-            && n(&decoded.values["header"], "flags") & 1 != 0
-        {
+        if musp && n(&decoded.values["header"], "flags") & 1 != 0 {
             let h = &decoded.values["header"];
             let peer = format!(
                 "{}|{}|{}",
@@ -527,7 +585,7 @@ impl Studio {
                         .to_string(),
                 )
             };
-            let binding_key = if [0x70, 0x71].contains(&send.msg_code) {
+            let binding_key = if musp && [0x70, 0x71].contains(&send.msg_code) {
                 let d = self.domain.lock().unwrap();
                 let device =
                     d.find_device(&system, "MUSP", &addr(&decoded.values["header"]["dstAddr"]));
@@ -584,22 +642,26 @@ impl Studio {
             let b = &decoded.values["body"];
             req.expect_src_addr = addr(&h["dstAddr"]);
             req.expect_dst_addr = addr(&h["srcAddr"]);
-            if req.transaction_id.is_some() {
-                req.transaction_id = h.get("transactionId").map(|_| n(h, "transactionId") as u32);
+            if !send.explicit_transaction_matcher && !send.no_transaction_matcher {
+                req.transaction_id = decoded_transaction(&decoded)?;
             }
-            req.session_matcher = if send.msg_code == 1 {
-                SessionMatcher::Assigned
-            } else {
-                SessionMatcher::Exact(n(h, "sessionId") as u16)
-            };
-            if send.msg_code == 0x21 {
+            if !send.explicit_session_matcher {
+                req.session_matcher = if musp && send.msg_code == 1 {
+                    SessionMatcher::Assigned
+                } else {
+                    h.get("sessionId")
+                        .map(|_| SessionMatcher::Exact(n(h, "sessionId") as u16))
+                        .unwrap_or(SessionMatcher::Any)
+                };
+            }
+            if musp && send.msg_code == 0x21 {
                 req.business
                     .insert("itemCount".into(), b["itemCount"].clone());
             }
-            if [0x70, 0x71, 0x76, 0x75, 0x78].contains(&send.msg_code) {
+            if musp && [0x70, 0x71, 0x76, 0x75, 0x78].contains(&send.msg_code) {
                 req.call_id = Some(n(b, "callId") as u16);
             }
-            if [0x70, 0x71, 0x76].contains(&send.msg_code) {
+            if musp && [0x70, 0x71, 0x76].contains(&send.msg_code) {
                 req.resource_id = Some(n(b, "resourceId") as u16);
                 req.direction = Some(if send.msg_code == 0x70 {
                     1
@@ -609,10 +671,10 @@ impl Studio {
                     n(b, "direction") as u8
                 });
             }
-            if send.msg_code == 0x76 {
+            if musp && send.msg_code == 0x76 {
                 req.resource_version = Some(n(b, "resourceVersion") as u16);
             }
-            if [0x75, 0x78].contains(&send.msg_code) {
+            if musp && [0x75, 0x78].contains(&send.msg_code) {
                 req.event_type = Some(if send.msg_code == 0x75 { 1 } else { 2 });
             }
             // Re-register the refined encoded key before send_to. This also checks conflicts.
@@ -644,11 +706,15 @@ impl Studio {
         }
         let sent = self
             .udp
-            .send_generation(
+            .send_with_context(
                 &send.endpoint_id,
                 &send.remote,
                 &bytes,
                 Some(&endpoint.generation),
+                Some(PacketContext {
+                    run_id: send.run_id.clone(),
+                    node_id: send.node_id.clone(),
+                }),
             )
             .await?;
         Ok(json!({"sent":sent}))

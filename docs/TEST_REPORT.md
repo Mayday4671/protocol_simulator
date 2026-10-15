@@ -70,3 +70,30 @@ Windows 10 x64 build 19045；Intel Core 5 220H（12核/16线程）、15.55 GiB R
 - 本机项目“MUSP v0.8 信令交互演示”导入并发布34条MUSP v0.8信令。首次执行五设备配置、5轮注册和3轮心跳，保存56条收发记录；升级后重新注册并运行3轮心跳，合计108条历史记录，非压力测试。
 - 初次56条记录的CRC与长度独立重算通过，14组事务匹配；配置逐条AA后提交，5台设备完成注册。协议候选Bit及8B结构仍保留候选标记。
 - XML、项目ZIP、CSV/JSON报文及截图保存在 `test-results/live-demo/`。对端是明确标注的本机虚拟UDP对端，未连接外部设备。
+
+## 0.1.1 流程联调工作区
+
+2026-10-15：根据“发送时看不到实际信令、需要切页、启动条件不清楚”的反馈，将发送配置、编码预览、运行控制和真实收发解析集中在流程页。
+
+- 启动栏常驻，显示具体不可运行原因，唯一匹配的已运行端点自动选择；协议和信令从发布 XML 读取。普通字段可直接填值，数组、复杂结构和高级规则仍保留 JSON 编辑。
+- 预览使用实际 Rust 编码器，展示 HEX、DEC、Bit 和中文解析；不创建运行、等待或发送，不替代实际收发记录。缺少变量明确列出，自动事务占位明确标记。
+- 实际 TX/RX 记录运行实例和节点；本次运行精确过滤，当前端点范围保留未匹配和坏包。旧 SQLite 日志迁移后关联为空，不伪造所属实例。双解析面板的字节定位相互隔离，选中字段直接显示 HEX、DEC 和含义。
+- 通用 UDP XML 不触发 MUSP 同码业务；MUSP 业务仅对明确的协议 ID 启用。缺失的正文 transactionId 不会被自动补值；显式事务、HEX 事务和嵌套头事务均按实际配置匹配，被动等待不套用 MUSP 会话条件。
+- 保存至发布完成期间锁定编辑和流程切换，避免显示值与发布值不一致；停止运行和查看报文仍可操作。
+
+本轮最终回归：
+
+- `pnpm test`：16 文件、52 项通过。证据 `test-results/flow-workspace-frontend-test.txt`。
+- `cargo test --locked -j 2 -- --skip one_hundred_devices_register_concurrently_with_two_isolated_controllers`（指定 src-tauri 清单）：133 项通过、0 失败，跳过 1 项百设备用例。证据 `test-results/flow-workspace-cargo-test.txt`。本轮不运行持续高频压力测试。
+- `cargo fmt --all -- --check`、`cargo clippy --locked --all-targets -j 2 -- -D warnings`：退出 0。证据 `test-results/flow-workspace-clippy.txt`。
+- 新增真实 UDP 回归覆盖主动发送、纯被动等待、并行运行关联、旧库迁移、同码通用协议隔离、显式事务条件及 HEX/嵌套头部事务；预览回归覆盖无副作用、缺变量、动态数组、共享结构与大整数精度。
+
+0.1.1 安装与桌面验收：
+
+- `pnpm package:windows` 退出 0。NSIS 安装包 `release/MUSP-Studio_0.1.1_x64-setup.exe` 为 224,175,050 字节，SHA256 `FCAE7D347725552BD157AA10CFAE895E871232E0AA5D151671E23C5ED894AA00`。生产 TypeScript/Vite 构建通过，沿用内嵌 WebView2 的 Windows EXE 安装方式。
+- 在工作区独立目录执行实际 NSIS 安装，退出 0。逐字节核验已安装 EXE 与构建产物仅相差官方 NSIS 打包标记；原 `D:\soft\MUSP Studio` 二进制散列不变，安装注册信息恢复原位置和版本。证据 `test-results/flow-workspace-install/report.json`。
+- 已安装 0.1.1 EXE 执行隔离自测，7 项检查通过：实际 MUSP 配置请求/响应、CRC、唯一匹配、设备提交和 SQLite 落库，共 4 条实际记录，socket 错误和队列丢弃均为 0。证据 `test-results/flow-workspace-installed-selftest/self-test.json`。
+- 关闭开发服务器后，从已安装程序的 `http://tauri.localhost/` 执行 `scripts/flow_workspace_e2e.py`，7 组界面检查通过。通过页面按钮启动；独立 Python UDP socket 收到实际 `21 2B 81 02 07 09` 后返回 `22 2B 81 02 07 09`；被动接收 `73 19 81 02 07 09` 后按接收字段发出 `21 19 81 02 07 09`；第三个等待流程超时失败且没有伪造报文。三流程合计 4 条收发记录，未处理脚本异常 0。证据 `test-results/flow-workspace-installed/report.json`。
+- 已检查 1440×1000、1280×800 的真实安装版截图，启动栏、实际收发区可见，无页面横向溢出。截图随发行报告保存为 `screenshots/flow-*.png`。
+
+本次不重复 0.1.0 卸载和七页巡检，不将其历史结果冒充本版验收；也不替代外部硬件或全新无 WebView2 虚拟机验证。测试项目使用独立数据目录，未编辑用户日常项目。

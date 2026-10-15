@@ -7,7 +7,11 @@ export interface Endpoint{id:string;name:string;bind:string;running:boolean;prot
 export interface Diagnostic{message:string;severity?:string;line?:number;column?:number;path?:string}
 export interface FieldSpan{path:string;labelZh:string;startOffset0:number;byteLength:number;rawHex:string;decimal?:string|number;binary?:string;decodedValue?:unknown;descriptionZh?:string;meaningZh?:string;children?:FieldSpan[];diagnostics?:string[]}
 export interface Decoded{fields:FieldSpan[];diagnostics?:(Diagnostic|string)[];valid?:boolean;messageCode?:number;msgCode?:number}
-export interface Packet{id:string;timestamp:number;direction:string;endpointId:string;remote:string;hex:string;length:number;msgCode?:number|null;status:string;decoded?:Decoded|null}
+export interface Packet{id:string;timestamp:number;direction:string;endpointId:string;remote:string;hex:string;length:number;msgCode?:number|null;status:string;decoded?:Decoded|null;runId?:string|null;nodeId?:string|null}
+export interface ProtocolCatalogField{path:string;key:string;label:string;kind:string;bytes?:number|null;binding?:string|null;computed?:string|null;required?:boolean;generated?:boolean;fixed?:boolean;valueKind?:string;enums?:Record<string,string>;defaultValue?:unknown;children?:ProtocolCatalogField[];variants?:unknown[];itemTemplate?:Record<string,unknown>;condition?:unknown;sectionCondition?:unknown;secret?:boolean}
+export interface ProtocolCatalogMessage{code:number;name:string;responseCodes:number[];fields:ProtocolCatalogField[];defaultValues:Record<string,unknown>;diagnostics:string[]}
+export interface ProtocolCatalog{protocolId:string;messages:ProtocolCatalogMessage[]}
+export interface FlowPreview{hex?:string;decoded?:Decoded;values?:Record<string,unknown>;missingVariables:string[];diagnostics:string[];expectedCodes:number[];previewOnly:true;placeholderFields:string[]}
 export interface FlowNode{id:string;type:string;position?:{x:number;y:number};data:Record<string,unknown>}
 export interface FlowEdge{id?:string;source:string;target:string;label?:string;sourceHandle?:string}
 export interface Flow{id:string;nameZh:string;version?:string;published?:boolean;protocol?:{id:string;version:string};nodes:FlowNode[];edges:FlowEdge[];config?:Record<string,unknown>;defaultVariables?:Record<string,unknown>;inputs?:string[]|Record<string,unknown>}

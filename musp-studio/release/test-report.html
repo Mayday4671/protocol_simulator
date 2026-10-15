@@ -1,8 +1,70 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MUSP Studio 0.1.0 验收报告</title><style>
-body{margin:0;background:#eef3f8;color:#203248;font:15px/1.8 'Microsoft YaHei UI',sans-serif}main{max-width:1080px;margin:32px auto;padding:38px;background:white;border:1px solid #d6e0eb;border-radius:12px}h1{font-size:28px}h2{border-top:1px solid #d6e0eb;padding-top:22px;margin-top:32px}code{font:13px Consolas,monospace;background:#eef3f8;padding:3px 5px;overflow-wrap:anywhere}table{border-collapse:collapse;width:100%;font-size:13px}td{border:1px solid #d6e0eb;padding:10px;vertical-align:top}tr:first-child{background:#eaf1f8;font-weight:bold}.verified{padding:20px;background:#e7f7ef;border-left:4px solid #11834b}a{color:#075fc4}details{padding:16px;background:#f5f8fb}img{width:100%;border:1px solid #d6e0eb;margin-top:12px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 Consolas,monospace}</style><main>
-<div class="verified"><strong>Windows NSIS 安装、真实UDP自测、桌面功能和卸载验证通过</strong><br>安装包包含WebView2离线运行时；全新虚拟机与现场硬件联调未验证。</div>
-<h1>MUSP Studio 测试与交付记录</h1><p>日期：2026-10-15。原始需求、业务基线及七张原型图保持原文；本文件记录实际实现和实测证据。</p><h2>环境</h2><p>Windows 10 x64 build 19045；Intel Core 5 220H（12核/16线程）、15.55 GiB RAM；Node 22.16.0、pnpm 10.24.0、Rust 1.97.1 MSVC、VS Build Tools 2022、WebView2 151.0.4129.101。本机已有WebView2，不替代全新离线虚拟机验收。</p><p>工程位于 <code>musp-studio</code>；原始输出及截图位于其 <code>test-results/</code>。</p><h2>S0–S6阶段记录</h2><table><tr><td>阶段</td><td>实现及验证</td><td>状态</td></tr><tr><td>S0</td><td>Tauri/React工程、MSVC原生EXE、SQLite迁移、项目/系统、主题及七页；按用户反馈合并标题栏，真实窗口控件通过。</td><td>核心通过</td></tr><tr><td>S1</td><td>Rust XML DSL/AST、共享结构、条件、数组、Bit、表达式、CRC；99B/31B向量往返；草稿/校验/不可变发布；字段多选复制、拖动、跨信令粘贴及引用检查。</td><td>核心通过</td></tr><tr><td>S2</td><td>Tokio真实多端点UDP、停止释放/占用反馈/离线ICMP恢复；坏包保留；SQLite压缩存储兼容旧TEXT；分页/方向过滤/HEX双向定位/CSV、JSON、JSONL。</td><td>核心通过</td></tr><tr><td>S3</td><td>手工/报文创建设备、逐条AA、两种配置映射、注册/认证会话；严格三态；脱敏会话及持久变更历史；100设备/2控制端关联测试。</td><td>核心通过</td></tr><tr><td>S4</td><td>React Flow与Rust解释器；发布快照；发送前登记等待；完整关联、超时重试、重复/迟到、取消、分支、循环、并行、子流程、暂停/继续/单步。</td><td>核心通过</td></tr><tr><td>S5</td><td>视频四项/语音两项RX/TX实际确认；带宽分列；主动结束/取消/离线与独立清理；UNKNOWN不回池。</td><td>核心通过</td></tr><tr><td>S6</td><td>七个可编辑流程模板、故障注入、项目ZIP、说明书、许可证记录；真实WebView2 E2E；内嵌WebView2的NSIS安装包；安装、自测、卸载数据保留。</td><td>本机验收通过</td></tr></table><p>核心通过表示表内已覆盖能力，不等于所有增强界面均已实现，边界见文末。</p><h2>测试证据</h2><p>原始 <code>generate_golden_vectors.py</code>：退出0；CONFIG_SET 99B/CRC D35D，CONFIG_RESULT 31B/CRC FECB。</p><p><code>cargo test --manifest-path src-tauri/Cargo.toml --locked -j 2</code>：最终106项通过、0失败，含认证、主动结束/取消、心跳历史、越界及未发布草稿拒绝。原始输出 <code>test-results/cargo-test-final.txt</code>。首次默认并行编译触发Windows页面文件不足，保留失败日志，改为2个编译任务后成功，未修改系统设置。</p><p><code>cargo fmt --manifest-path src-tauri/Cargo.toml --check</code> 与 <code>cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -j 2 -- -D warnings</code>：最终退出0。</p><p><code>pnpm test</code>：最终12文件36项通过；字段复制/引用、Bit、HEX、协议Tab、多选/拖动、标题栏API、草稿运行保护、跨项目查询隔离和通话类型保存等。</p><p><code>pnpm build</code>：TypeScript/Vite成功，Monaco体积警告保留；编辑器本地加载，无CDN。</p><p><code>scripts/desktop_e2e.py</code>：真实Tauri WebView2操作11项通过，5台设备实际UDP配置注册；45条项目报文含1条刻意损坏报文；七页、主题持久化、XML校验、HEX双向选择、方向过滤、导出导入，无未处理JavaScript异常。<code>test-results/desktop-dev-e2e/report.json</code>。</p><p><code>scripts/window_e2e.py</code>：真实双击最大化/还原，项目下拉控件不触发拖动。<code>test-results/window-e2e.json</code>。</p><p>100设备/2控制端：峰值100等待；最终100 ONLINE/100独立会话，错来源/错事务/无等待响应未污染会话。</p><p>安全：DTD/ENTITY拒绝，表达式白名单，上限检查，ZIP路径穿越/校验和，发布版不可变，跨项目迟到包隔离，端点重启隔离，Token在坏magic/flag/code/CRC下脱敏；普通UNKNOWN保留HEX。详见 <code>REVIEW.md</code>。</p><p>设备历史/业务校验：资源ID/版本越界拒绝、设备变更持久化不存Token、项目备份保存设置与历史已通过。</p><h2>用户调整的验收范围</h2><p>用户明确表示“不需要做这么大的压测，我不会有这么快的包”。已停止1000/5000包每秒持续压力测试，不再将该吞吐指标作为本次交付门槛。保留已执行失败/中止记录，**不宣称达到原设高吞吐目标**。接收、处理、失败、队列丢弃显示真实计数；保留普通回环、超时/重试和关联测试。</p><h2>安装记录（首次交付）</h2><p>最终 <code>pnpm package:windows</code> 成功，退出0：<code>release/MUSP-Studio_0.1.0_x64-setup.exe</code>，224,126,597字节（213.74 MiB）。内嵌微软签名Valid的WebView2离线安装器。首次交付 SHA256：<code>B26284747E9517ACFE3F17B86CC80239D31157A5FD051E1D14136BC21D06320C</code>；更新后的安装包见下节。</p><p>首次安装和最终升级安装均退出0。安装后二进制与构建产物仅相差Tauri官方打包标记 <code>__TAURI_BUNDLE_TYPE_VAR_UNK</code> → <code>...NSS</code> 的3字节，逐字节核验无其他差异。证据 <code>install-final.json</code>。</p><p>最终安装EXE <code>--self-test</code>退出0：SQLite/XML/双端点真实UDP/CRC/唯一匹配/0x22提交/4条报文落库全过，队列丢弃与socket错误均0。证据 <code>installed-self-test-final.json</code>。</p><p>最终安装版 <code>http://tauri.localhost/</code> 的12项桌面检查通过，无开发服务器依赖：包含可视化画布编辑→保存草稿禁止运行→发布→按钮启动实际UDP流程，以及配置后仍保留设备ONLINE。项目49条报文，1条刻意损坏报文用于验证诊断；未处理脚本异常0。证据 <code>desktop-installed-final/report.json</code>。</p><p>自定义标题栏最小化、最大化/还原、双击与项目控件隔离通过；点击真实关闭按钮后应用退出，仍在监听的UDP端口可立即重新绑定。证据 <code>window-e2e.json</code>、<code>close-window-e2e.json</code>。</p><p>最终卸载退出0，应用EXE删除，项目SQLite保留且卸载前后SHA256一致。证据 <code>uninstall-final.json</code>。</p><p>验收后重新安装到当前用户 <code>%LOCALAPPDATA%\\MUSP Studio</code>，提供正常快捷方式与可直接运行的EXE。证据 <code>installed-location.json</code>。</p><p>所有安装、自测、卸载结果汇总在 <code>test-results/installation-final.json</code>；发行目录附离线HTML验收报告及七页真实安装版截图。</p><h2>明确边界</h2><p>没有干净Windows 11虚拟机、无WebView2环境或外部MUSP硬件联调证据。</p><p>高级字段通过XML/节点JSON配置；未为每个字段提供专用表单。</p><p>已有多协议草稿Tab；统一协议/设备/流程顶层Tab、模板分类收藏库尚未实现。</p><p>Token不保存为可恢复会话；重启需重新注册，旧运行不自动重发。未确认资源恢复UNKNOWN，须真实确认或带原因人工核实。</p><p>应用未配置代码签名；SHA256用于完整性核验。</p><p>通用8B剩余字节、候选Bit等业务歧义见 <code>OPEN_QUESTIONS.md</code>。</p><h2>页面文案更新与协议演示录入</h2><p>2026-10-15：删除七个业务页及系统设置的标题副文案、页脚口号、装饰标签和重复介绍，保留字段单位、业务前提及错误提示。现有前端测试36项通过，生产构建和NSIS打包成功；Rust业务代码未改动，本轮未重复全量Rust测试或卸载测试。</p><p>新安装包升级退出0；大小224,128,852字节。SHA256：<code>6E260B2350BF5F72CAA23216CE0280B42B2455B85BFD144CC1E8E433C126B675</code>。</p><p>安装后二进制核验通过；7项独立自测通过，真实UDP收发各2条、无丢包或socket错误。证据 <code>test-results/copy-cleanup-install.json</code>。</p><p>已安装版逐页检查8页，标题副文案均已移除，未处理脚本异常0；检查HEX与字段联动、Bit展示、AA/170/配置成功。</p><p>本机项目“MUSP v0.8 信令交互演示”导入并发布34条MUSP v0.8信令。首次执行五设备配置、5轮注册和3轮心跳，保存56条收发记录；升级后重新注册并运行3轮心跳，合计108条历史记录，非压力测试。</p><p>初次56条记录的CRC与长度独立重算通过，14组事务匹配；配置逐条AA后提交，5台设备完成注册。协议候选Bit及8B结构仍保留候选标记。</p><p>XML、项目ZIP、CSV/JSON报文及截图保存在 <code>test-results/live-demo/</code>。对端是明确标注的本机虚拟UDP对端，未连接外部设备。</p><h2>安装版界面检查</h2><ul><li>真实Tauri IPC、项目隔离和两个Rust UDP socket</li><li>0x21真实发送与0x22逐项AA确认生成5台离线设备</li><li>5台设备实际注册握手后ONLINE，状态来自后端</li><li>损坏UDP保留原始数据、RX/TX数据库过滤正确</li><li>损坏报文UI不崩溃，HEX与解析字段双向选择</li><li>应用内Monaco XML通过Rust语法与DSL校验</li><li>统一标题栏、真实最小化与最大化/还原</li><li>可视化流程保存/发布/真实运行，草稿禁止启动，配置不重置在线设备</li><li>七个功能页面连接真实桌面服务并正常显示</li><li>主题切换即时生效并在重载后保留</li><li>完整报文JSON/JSONL/CSV与项目ZIP导出导入</li><li>WebView2无未处理JavaScript异常</li></ul><p>实际页面来源：<code>http://tauri.localhost/</code>；未处理脚本错误：0</p><details><summary>首次发布安装验证结果（保留原始记录）</summary><pre>{
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>MUSP Studio 0.1.1 验收报告</title><style>
+body{margin:0;background:#eef3f8;color:#203248;font:15px/1.8 'Microsoft YaHei UI',sans-serif}
+main{max-width:1080px;margin:32px auto;padding:38px;background:white;border:1px solid #d6e0eb;border-radius:12px}
+h1{font-size:28px}h2{border-top:1px solid #d6e0eb;padding-top:22px;margin-top:32px}
+code{font:13px Consolas,monospace;background:#eef3f8;padding:3px 5px;overflow-wrap:anywhere}
+.verified{padding:20px;background:#e7f7ef;border-left:4px solid #11834b}a{color:#075fc4}
+details{padding:16px;margin:12px 0;background:#f5f8fb}img{max-width:100%;border:1px solid #d6e0eb;margin-top:12px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 Consolas,monospace}
+</style></head><body><main><h1>MUSP Studio 0.1.1 验收报告</h1>
+<div class="verified"><strong>本次隔离安装、已安装 EXE 的真实 MUSP 自测与通用 UDP 流程验收通过</strong></div>
+<p>当前结论仅来自以下三份本次记录，并核对安装包与已安装程序的 SHA256。旧版本安装、升级、七页巡检和卸载记录在文末历史区单独保留，不代表本版本重复执行。</p>
+<p>本次对端使用真实本机 UDP socket，未连接外部硬件；全新无 WebView2 的离线虚拟机尚未验证。应用未配置代码签名，SHA256 用于完整性核验。</p>
+<p>用户已取消高频压力验收。原失败或中止样本仍保留，不作为本次交付门槛，也不据此声称达到高吞吐指标。</p>
+<h2>当前安装产物</h2><p>安装包：<code>MUSP-Studio_0.1.1_x64-setup.exe</code><br>安装包 SHA256：<code>fcae7d347725552bd157aa10cfae895e871232e0aa5d151671e23c5ed894aa00</code><br>已安装 EXE SHA256：<code>5afa122f50c57838306e422d718ab77093619bbe009840517c3186b4727b314b</code><br>隔离安装后应用注册信息已恢复。</p><details><summary>本次隔离安装原始记录</summary><p>原始记录：<code>test-results/flow-workspace-install/report.json</code></p><pre>{
+  &quot;userProcesses&quot;: [],
+  &quot;exitCode&quot;: 0,
+  &quot;existingInstallationUnchanged&quot;: true,
+  &quot;registrationRestored&quot;: true,
+  &quot;passed&quot;: true,
+  &quot;installedSha256&quot;: &quot;5AFA122F50C57838306E422D718AB77093619BBE009840517C3186B4727B314B&quot;,
+  &quot;startedAt&quot;: &quot;2026-10-15T14:11:46.0206356+08:00&quot;,
+  &quot;installerSha256&quot;: &quot;FCAE7D347725552BD157AA10CFAE895E871232E0AA5D151671E23C5ED894AA00&quot;,
+  &quot;installer&quot;: &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\release\\MUSP-Studio_0.1.1_x64-setup.exe&quot;,
+  &quot;installTarget&quot;: &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\flow-workspace-install\\installed&quot;,
+  &quot;binaryVerification&quot;: &quot;only official Tauri NSIS bundle marker differs&quot;
+}</pre></details><h2>已安装程序的真实 MUSP 自测</h2><ul><li>SQLite迁移</li><li>内置XML编译</li><li>Rust真实UDP双端点</li><li>编码与CRC</li><li>响应唯一匹配</li><li>0x22业务提交</li><li>报文SQLite落库</li></ul><details><summary>本次安装版自测原始记录</summary><p>原始记录：<code>test-results/flow-workspace-installed-selftest/self-test.json</code></p><pre>{
+  &quot;checks&quot;: [
+    &quot;SQLite迁移&quot;,
+    &quot;内置XML编译&quot;,
+    &quot;Rust真实UDP双端点&quot;,
+    &quot;编码与CRC&quot;,
+    &quot;响应唯一匹配&quot;,
+    &quot;0x22业务提交&quot;,
+    &quot;报文SQLite落库&quot;
+  ],
+  &quot;dataDirectory&quot;: &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\flow-workspace-installed-selftest&quot;,
+  &quot;packetCount&quot;: 4,
+  &quot;passed&quot;: true,
+  &quot;stats&quot;: {
+    &quot;queueDropped&quot;: 0,
+    &quot;rx&quot;: 2,
+    &quot;socketErrors&quot;: 0,
+    &quot;tx&quot;: 2
+  },
+  &quot;version&quot;: &quot;0.1.1&quot;
+}</pre></details><h2>已安装程序的流程页真实 UDP 验收</h2><ul><li>唯一匹配监听端点自动选择，启动入口始终可见</li><li>普通字段直接填写，修改后必须发布才能运行</li><li>发送前Rust编码预览可见，预览不发送也不创建运行实例</li><li>主动发送与外部UDP对端响应均在流程页显示，按本次实例过滤</li><li>同页HEX、十进制、Bit与字段解析双向定位，预览面板不串选</li><li>被动等待真实73报文后按接收字段回复21，不触发MUSP设备或资源规则</li><li>等待超时就地显示失败，没有伪造收发记录</li></ul><p>实际页面来源：<code>http://tauri.localhost/</code>；未处理脚本异常：0；主动与被动流程实际报文总数：4。</p><details><summary>本次流程页验收原始记录</summary><p>原始记录：<code>test-results/flow-workspace-installed/report.json</code></p><pre>{
+  &quot;passed&quot;: true,
+  &quot;checks&quot;: [
+    &quot;唯一匹配监听端点自动选择，启动入口始终可见&quot;,
+    &quot;普通字段直接填写，修改后必须发布才能运行&quot;,
+    &quot;发送前Rust编码预览可见，预览不发送也不创建运行实例&quot;,
+    &quot;主动发送与外部UDP对端响应均在流程页显示，按本次实例过滤&quot;,
+    &quot;同页HEX、十进制、Bit与字段解析双向定位，预览面板不串选&quot;,
+    &quot;被动等待真实73报文后按接收字段回复21，不触发MUSP设备或资源规则&quot;,
+    &quot;等待超时就地显示失败，没有伪造收发记录&quot;
+  ],
+  &quot;pageErrors&quot;: [],
+  &quot;dataDir&quot;: &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\flow-workspace-installed-data&quot;,
+  &quot;url&quot;: &quot;http://tauri.localhost/&quot;,
+  &quot;endpoint&quot;: &quot;127.0.0.1:17049&quot;,
+  &quot;activeRun&quot;: &quot;6a0cccdd-c050-4747-8a75-93c641d54d67&quot;,
+  &quot;peerReceived&quot;: &quot;21 2B 81 02 07 09&quot;,
+  &quot;passiveRun&quot;: &quot;01294200-dcf5-48e9-9342-0ef80f209d5d&quot;,
+  &quot;timeoutRun&quot;: &quot;cb2dab92-2521-4fbb-9802-55094cb51c31&quot;,
+  &quot;packetCount&quot;: 4
+}</pre></details><details><summary>主动发送与响应：1440 像素窗口</summary><img src="screenshots/flow-active-1440.png" alt="主动发送与响应：1440 像素窗口"></details><details><summary>主动发送与响应：1280 像素窗口</summary><img src="screenshots/flow-active-1280.png" alt="主动发送与响应：1280 像素窗口"></details><details><summary>被动等待后按收到的字段回复</summary><img src="screenshots/flow-passive.png" alt="被动等待后按收到的字段回复"></details><details><summary>等待超时与失败显示</summary><img src="screenshots/flow-timeout.png" alt="等待超时与失败显示"></details><h2>历史证据</h2><details><summary>0.1.0 历史安装、七页巡检与卸载记录（不计入本次通过结论）</summary><p>下列原始记录与截图属于此前的 0.1.0 交付及文案更新；保留其原始版本、文件名、散列和测试范围。</p><details><summary>0.1.0 首次安装、升级、自测与卸载记录</summary><p>原始记录：<code>test-results/installation-final.json</code></p><pre>{
   &quot;passed&quot;: true,
   &quot;version&quot;: &quot;0.1.0&quot;,
   &quot;rustTests&quot;: 106,
@@ -79,7 +141,50 @@ body{margin:0;background:#eef3f8;color:#203248;font:15px/1.8 'Microsoft YaHei UI
     &quot;SHA256&quot;: &quot;A06ECAE9C36EE25309C74D4AE5D1A12F3C4CBA481D07DFA993108F4343D75957&quot;
   },
   &quot;freshOfflineVirtualMachineTested&quot;: false
-}</pre></details><details open><summary>界面文案更新与联调项目验证</summary><pre>{
+}</pre></details><details><summary>0.1.0 已安装版七页与功能巡检</summary><p>原始记录：<code>test-results/desktop-installed-final/report.json</code></p><pre>{
+  &quot;passed&quot;: true,
+  &quot;checks&quot;: [
+    &quot;真实Tauri IPC、项目隔离和两个Rust UDP socket&quot;,
+    &quot;0x21真实发送与0x22逐项AA确认生成5台离线设备&quot;,
+    &quot;5台设备实际注册握手后ONLINE，状态来自后端&quot;,
+    &quot;损坏UDP保留原始数据、RX/TX数据库过滤正确&quot;,
+    &quot;损坏报文UI不崩溃，HEX与解析字段双向选择&quot;,
+    &quot;应用内Monaco XML通过Rust语法与DSL校验&quot;,
+    &quot;统一标题栏、真实最小化与最大化/还原&quot;,
+    &quot;可视化流程保存/发布/真实运行，草稿禁止启动，配置不重置在线设备&quot;,
+    &quot;七个功能页面连接真实桌面服务并正常显示&quot;,
+    &quot;主题切换即时生效并在重载后保留&quot;,
+    &quot;完整报文JSON/JSONL/CSV与项目ZIP导出导入&quot;,
+    &quot;WebView2无未处理JavaScript异常&quot;
+  ],
+  &quot;pageErrors&quot;: [],
+  &quot;screenshots&quot;: [
+    &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\desktop-installed-final\\page-1.png&quot;,
+    &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\desktop-installed-final\\page-2.png&quot;,
+    &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\desktop-installed-final\\page-3.png&quot;,
+    &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\desktop-installed-final\\page-4.png&quot;,
+    &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\desktop-installed-final\\page-5.png&quot;,
+    &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\desktop-installed-final\\page-6.png&quot;,
+    &quot;E:\\My_Project\\Protocol_Simulator\\musp-studio\\test-results\\desktop-installed-final\\page-7.png&quot;
+  ],
+  &quot;url&quot;: &quot;http://tauri.localhost/&quot;,
+  &quot;projectId&quot;: &quot;21b7238d-1a30-4005-bc99-cc8ce417aace&quot;,
+  &quot;packetCount&quot;: 49,
+  &quot;exports&quot;: [
+    {
+      &quot;path&quot;: &quot;C:\\Users\\KYD-PC-357\\AppData\\Roaming\\dev.musp.studio\\export\\packets-1792033822713.json&quot;,
+      &quot;rows&quot;: 49
+    },
+    {
+      &quot;path&quot;: &quot;C:\\Users\\KYD-PC-357\\AppData\\Roaming\\dev.musp.studio\\export\\packets-1792033822768.jsonl&quot;,
+      &quot;rows&quot;: 49
+    },
+    {
+      &quot;path&quot;: &quot;C:\\Users\\KYD-PC-357\\AppData\\Roaming\\dev.musp.studio\\export\\packets-1792033822792.csv&quot;,
+      &quot;rows&quot;: 49
+    }
+  ]
+}</pre></details><details><summary>0.1.0 文案更新后的安装与自测记录</summary><p>原始记录：<code>test-results/copy-cleanup-install.json</code></p><pre>{
   &quot;selfTest&quot;: {
     &quot;checks&quot;: [
       &quot;SQLite迁移&quot;,
@@ -122,4 +227,4 @@ body{margin:0;background:#eef3f8;color:#203248;font:15px/1.8 'Microsoft YaHei UI
     &quot;八页均无标题副文案&quot;
   ],
   &quot;fullUninstallRegression&quot;: &quot;首版已通过，本轮未重复卸载&quot;
-}</pre></details><details><summary>1. 工作台（真实安装版）</summary><img src="screenshots/page-1.png" alt="工作台"></details><details><summary>2. 协议设计（真实安装版）</summary><img src="screenshots/page-2.png" alt="协议设计"></details><details><summary>3. 设备管理（真实安装版）</summary><img src="screenshots/page-3.png" alt="设备管理"></details><details><summary>4. 交互流程（真实安装版）</summary><img src="screenshots/page-4.png" alt="交互流程"></details><details><summary>5. 报文监控（真实安装版）</summary><img src="screenshots/page-5.png" alt="报文监控"></details><details><summary>6. 通话资源（真实安装版）</summary><img src="screenshots/page-6.png" alt="通话资源"></details><details><summary>7. 模板库（真实安装版）</summary><img src="screenshots/page-7.png" alt="模板库"></details><p><a href="MUSP-Studio_0.1.0_x64-setup.exe">Windows安装包</a> · <a href="SHA256SUMS.txt">SHA256清单</a> · <a href="README_安装使用.md">安装使用说明</a></p></main></html>
+}</pre></details><details><summary>0.1.0 历史截图：工作台</summary><img src="screenshots/page-1.png" alt="0.1.0 历史工作台"></details><details><summary>0.1.0 历史截图：协议设计</summary><img src="screenshots/page-2.png" alt="0.1.0 历史协议设计"></details><details><summary>0.1.0 历史截图：设备管理</summary><img src="screenshots/page-3.png" alt="0.1.0 历史设备管理"></details><details><summary>0.1.0 历史截图：交互流程</summary><img src="screenshots/page-4.png" alt="0.1.0 历史交互流程"></details><details><summary>0.1.0 历史截图：报文监控</summary><img src="screenshots/page-5.png" alt="0.1.0 历史报文监控"></details><details><summary>0.1.0 历史截图：通话资源</summary><img src="screenshots/page-6.png" alt="0.1.0 历史通话资源"></details><details><summary>0.1.0 历史截图：模板库</summary><img src="screenshots/page-7.png" alt="0.1.0 历史模板库"></details></details><p><a href="MUSP-Studio_0.1.1_x64-setup.exe">当前 Windows 安装包</a> · <a href="SHA256SUMS.txt">SHA256 清单</a> · <a href="README_安装使用.md">安装使用说明</a></p></main></body></html>

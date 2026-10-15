@@ -148,6 +148,16 @@ pub struct SendAction {
     pub msg_code: u8,
     pub values: Value,
     pub attempt: u32,
+    #[serde(default)]
+    pub explicit_session_matcher: bool,
+    #[serde(default)]
+    pub explicit_transaction_matcher: bool,
+    /// Preserve an intentional transaction wildcard independently of value syntax.
+    #[serde(default)]
+    pub no_transaction_matcher: bool,
+    /// The host may use this generated value only for a schema header transaction.
+    #[serde(default)]
+    pub automatic_transaction: bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "SCREAMING_SNAKE_CASE")]
@@ -1085,28 +1095,17 @@ impl FlowEngine {
                 .or_else(|| data.get("requestMsgCode"))
                 .unwrap_or(&json!(0)),
         )?;
-        let mut values = data.get("values").cloned().unwrap_or_else(|| json!({}));
-        if !values.is_object() {
-            return Err("发送values必须是对象".into());
-        }
-        for key in ["srcAddr", "dstAddr", "sessionId", "transactionId"] {
-            if values.get(key).is_none()
-                && let Some(v) = values.get("header").and_then(|h| h.get(key)).cloned()
-            {
-                values[key] = v;
-            }
-        }
-        if values.get("transactionId").is_none() {
+        let mut values = resolve_send_values(&data, env)?;
+        let automatic_transaction =
+            n.kind != "WAIT_PACKET" && values.get("transactionId").is_none();
+        if automatic_transaction {
             self.next_transaction = self.next_transaction.wrapping_add(1).max(1);
             values["transactionId"] = json!(self.next_transaction);
         }
-        for key in ["srcAddr", "dstAddr", "sessionId"] {
-            if values.get(key).is_none()
-                && let Some(v) = env.get(key)
-            {
-                values[key] = v.clone();
-            }
-        }
+        let explicit_transaction_matcher = data
+            .get("match")
+            .and_then(|rule| rule.get("transactionId"))
+            .is_some();
         let action_id = id();
         let mut pending_id = None;
         if n.kind != "SEND" {
@@ -1134,33 +1133,39 @@ impl FlowEngine {
             request.incoming_request = n.kind == "WAIT_PACKET";
             request.expected_msg_codes = codes;
             if request.expect_src_addr.is_empty() {
-                request.expect_src_addr =
-                    parse_address(values.get("dstAddr").ok_or("缺少dstAddr")?)?;
+                request.expect_src_addr = values
+                    .get("dstAddr")
+                    .map(parse_address)
+                    .transpose()?
+                    .unwrap_or_default();
             }
             if request.expect_dst_addr.is_empty() {
-                request.expect_dst_addr =
-                    parse_address(values.get("srcAddr").ok_or("缺少srcAddr")?)?;
+                request.expect_dst_addr = values
+                    .get("srcAddr")
+                    .map(parse_address)
+                    .transpose()?
+                    .unwrap_or_default();
             }
-            if data.get("noTransactionId").and_then(Value::as_bool) != Some(true) {
+            if !explicit_transaction_matcher
+                && data.get("noTransactionId").and_then(Value::as_bool) != Some(true)
+            {
                 request.transaction_id = values
                     .get("transactionId")
-                    .and_then(Value::as_u64)
-                    .map(|v| v as u32);
+                    .map(transaction_value)
+                    .transpose()?;
             }
             if data
                 .get("match")
                 .and_then(|m| m.get("sessionMatcher"))
                 .is_none()
             {
-                request.session_matcher = if code == 1 {
-                    SessionMatcher::Assigned
-                } else {
-                    values
-                        .get("sessionId")
-                        .and_then(Value::as_u64)
-                        .map(|v| SessionMatcher::Exact(v as u16))
-                        .unwrap_or(SessionMatcher::Any)
-                };
+                // Protocol-specific registration assignment belongs to the host.
+                // A generic opcode 0x01 may have no session field at all.
+                request.session_matcher = values
+                    .get("sessionId")
+                    .and_then(Value::as_u64)
+                    .map(|v| SessionMatcher::Exact(v as u16))
+                    .unwrap_or(SessionMatcher::Any);
             }
             request.timeout_ms = data
                 .get("timeoutMs")
@@ -1197,6 +1202,14 @@ impl FlowEngine {
             msg_code: code,
             values,
             attempt: 1,
+            explicit_session_matcher: data
+                .get("match")
+                .and_then(|rule| rule.get("sessionMatcher"))
+                .is_some(),
+            explicit_transaction_matcher,
+            no_transaction_matcher: data.get("noTransactionId").and_then(Value::as_bool)
+                == Some(true),
+            automatic_transaction,
         };
         if let Some(p) = &pending_id {
             self.sends.insert(p.clone(), send.clone());
@@ -1216,7 +1229,7 @@ impl FlowEngine {
 fn get_string(v: &Value, key: &str) -> Option<String> {
     v.get(key).and_then(Value::as_str).map(str::to_owned)
 }
-fn parse_code(v: &Value) -> Result<u8, String> {
+pub(crate) fn parse_code(v: &Value) -> Result<u8, String> {
     let value = if let Some(n) = v.as_u64() {
         n
     } else if let Some(s) = v.as_str() {
@@ -1229,6 +1242,40 @@ fn parse_code(v: &Value) -> Result<u8, String> {
         return Err("信令码非法".into());
     };
     u8::try_from(value).map_err(|_| "信令码超出一字节".into())
+}
+// The initial key must not become a wildcard solely because a value was entered
+// as HEX. The host refines this provisional numeric key from actual encoded
+// bytes before sending, including schemas with a different byte order.
+fn transaction_value(value: &Value) -> Result<u32, String> {
+    if let Some(number) = value.as_u64() {
+        return u32::try_from(number).map_err(|_| "事务号超出32位匹配范围".into());
+    }
+    let bytes = if let Some(text) = value.as_str() {
+        let text = text
+            .trim()
+            .strip_prefix("0x")
+            .or_else(|| text.trim().strip_prefix("0X"))
+            .unwrap_or(text);
+        hex::decode(text.split_whitespace().collect::<String>()).map_err(|_| "事务号HEX非法")?
+    } else if let Some(items) = value.as_array() {
+        items
+            .iter()
+            .map(|item| {
+                item.as_u64()
+                    .and_then(|n| u8::try_from(n).ok())
+                    .ok_or("事务号字节非法")
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        return Err("事务号必须为整数、HEX或字节数组".into());
+    };
+    if bytes.is_empty() || bytes.len() > 8 {
+        return Err("事务号字节长度非法".into());
+    }
+    let number = bytes
+        .iter()
+        .fold(0u64, |number, byte| (number << 8) | u64::from(*byte));
+    u32::try_from(number).map_err(|_| "事务号超出32位匹配范围".into())
 }
 fn parse_address(v: &Value) -> Result<Vec<u8>, String> {
     if let Some(a) = v.as_array() {
@@ -1245,7 +1292,7 @@ fn parse_address(v: &Value) -> Result<Vec<u8>, String> {
         Err("地址必须是字节数组或HEX".into())
     }
 }
-fn resolve_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
+pub(crate) fn resolve_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
     let path = path.trim().trim_start_matches("${").trim_end_matches('}');
     let normalized = path.replace('[', ".").replace(']', "");
     let mut v = value;
@@ -1258,7 +1305,7 @@ fn resolve_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
     }
     Some(v)
 }
-fn resolve_value(value: &Value, env: &Value) -> Result<Value, String> {
+pub(crate) fn resolve_value(value: &Value, env: &Value) -> Result<Value, String> {
     match value {
         Value::String(s) if s.starts_with("${") && s.ends_with('}') => resolve_path(env, s)
             .cloned()
@@ -1275,6 +1322,29 @@ fn resolve_value(value: &Value, env: &Value) -> Result<Value, String> {
             .map(Value::Object),
         _ => Ok(value.clone()),
     }
+}
+/// Apply the send node's existing value/header/environment precedence without
+/// allocating a transaction or changing any runtime state.
+pub(crate) fn resolve_send_values(data: &Value, env: &Value) -> Result<Value, String> {
+    let mut values = data.get("values").cloned().unwrap_or_else(|| json!({}));
+    if !values.is_object() {
+        return Err("发送values必须是对象".into());
+    }
+    for key in ["srcAddr", "dstAddr", "sessionId", "transactionId"] {
+        if values.get(key).is_none()
+            && let Some(v) = values.get("header").and_then(|h| h.get(key)).cloned()
+        {
+            values[key] = v;
+        }
+    }
+    for key in ["srcAddr", "dstAddr", "sessionId"] {
+        if values.get(key).is_none()
+            && let Some(v) = env.get(key)
+        {
+            values[key] = v.clone();
+        }
+    }
+    Ok(values)
 }
 fn set_path(root: &mut Value, path: &str, value: Value) -> Result<(), String> {
     let parts: Vec<_> = path.split('.').collect();

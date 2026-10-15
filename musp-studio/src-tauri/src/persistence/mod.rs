@@ -1,4 +1,4 @@
-use crate::network::now_ms;
+use crate::network::{PacketContext, now_ms};
 use rusqlite::{Connection, params};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -75,6 +75,11 @@ pub struct PacketInsert<'a> {
     pub status: &'a str,
     pub decoded: &'a Value,
 }
+#[derive(Default)]
+pub struct PacketScope<'a> {
+    pub run_id: Option<&'a str>,
+    pub endpoint_id: Option<&'a str>,
+}
 
 impl Database {
     pub fn delete_project(&self, id: &str) -> Result<()> {
@@ -100,6 +105,25 @@ impl Database {
             .map_err(|e| e.to_string())?;
         conn.execute_batch(include_str!("../../migrations/0001_init.sql"))
             .map_err(|e| e.to_string())?;
+        // Existing installations keep their packet data; provenance is unknown for old rows.
+        let columns = {
+            let mut query = conn
+                .prepare("PRAGMA table_info(packets)")
+                .map_err(|e| e.to_string())?;
+            query
+                .query_map([], |row| row.get::<_, String>(1))
+                .map_err(|e| e.to_string())?
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?
+        };
+        for column in ["run_id", "node_id"] {
+            if !columns.iter().any(|existing| existing == column) {
+                conn.execute_batch(&format!("ALTER TABLE packets ADD COLUMN {column} TEXT"))
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        conn.execute_batch("CREATE INDEX IF NOT EXISTS packet_project_run ON packets(project_id,run_id,id DESC); CREATE INDEX IF NOT EXISTS packet_project_endpoint ON packets(project_id,endpoint_id,id DESC); PRAGMA user_version=2;")
+            .map_err(|e|e.to_string())?;
         conn.execute_batch("PRAGMA synchronous=NORMAL; PRAGMA cache_size=-16384;")
             .map_err(|e| e.to_string())?;
         Ok(Self {
@@ -298,7 +322,7 @@ impl Database {
                 .map_err(|e| e.to_string())?;
         conn.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(|e| e.to_string())?;
-        let mut stmt=conn.prepare("SELECT id,event_time,direction,endpoint_id,remote,msg_code,byte_length,hex,status,decoded_json FROM packets WHERE project_id=?1 ORDER BY id").map_err(|e|e.to_string())?;
+        let mut stmt=conn.prepare("SELECT id,event_time,direction,endpoint_id,remote,msg_code,byte_length,hex,status,decoded_json,run_id,node_id FROM packets WHERE project_id=?1 ORDER BY id").map_err(|e|e.to_string())?;
         let mut rows = stmt.query([project]).map_err(|e| e.to_string())?;
         let mut count = 0;
         if format == "json" {
@@ -306,13 +330,13 @@ impl Database {
         } else if format == "csv" {
             writer
                 .write_all(
-                    "\u{feff}id,timestamp,direction,endpoint,remote,msgCode,length,hex,status\r\n"
+                    "\u{feff}id,timestamp,direction,endpoint,remote,msgCode,length,hex,status,runId,nodeId\r\n"
                         .as_bytes(),
                 )
                 .map_err(|e| e.to_string())?;
         }
         while let Some(row) = rows.next().map_err(|e| e.to_string())? {
-            let value = json!({"id":row.get::<_,i64>(0).map_err(|e|e.to_string())?,"timestamp":row.get::<_,u64>(1).map_err(|e|e.to_string())?,"direction":row.get::<_,String>(2).map_err(|e|e.to_string())?,"endpointId":row.get::<_,String>(3).map_err(|e|e.to_string())?,"remote":row.get::<_,String>(4).map_err(|e|e.to_string())?,"msgCode":row.get::<_,Option<u8>>(5).map_err(|e|e.to_string())?,"length":row.get::<_,usize>(6).map_err(|e|e.to_string())?,"hex":row.get::<_,String>(7).map_err(|e|e.to_string())?,"status":row.get::<_,String>(8).map_err(|e|e.to_string())?,"decoded":packet_decoded(row,9).map_err(|e|e.to_string())?});
+            let value = json!({"id":row.get::<_,i64>(0).map_err(|e|e.to_string())?,"timestamp":row.get::<_,u64>(1).map_err(|e|e.to_string())?,"direction":row.get::<_,String>(2).map_err(|e|e.to_string())?,"endpointId":row.get::<_,String>(3).map_err(|e|e.to_string())?,"remote":row.get::<_,String>(4).map_err(|e|e.to_string())?,"msgCode":row.get::<_,Option<u8>>(5).map_err(|e|e.to_string())?,"length":row.get::<_,usize>(6).map_err(|e|e.to_string())?,"hex":row.get::<_,String>(7).map_err(|e|e.to_string())?,"status":row.get::<_,String>(8).map_err(|e|e.to_string())?,"decoded":packet_decoded(row,9).map_err(|e|e.to_string())?,"runId":row.get::<_,Option<String>>(10).map_err(|e|e.to_string())?,"nodeId":row.get::<_,Option<String>>(11).map_err(|e|e.to_string())?});
             if format == "csv" {
                 let cells = [
                     "id",
@@ -324,6 +348,8 @@ impl Database {
                     "length",
                     "hex",
                     "status",
+                    "runId",
+                    "nodeId",
                 ]
                 .iter()
                 .map(|k| {
@@ -354,9 +380,16 @@ impl Database {
         Ok(count)
     }
     pub fn insert_packet(&self, p: &PacketInsert<'_>) -> Result<i64> {
+        self.insert_packet_with_context(p, None)
+    }
+    pub fn insert_packet_with_context(
+        &self,
+        p: &PacketInsert<'_>,
+        context: Option<&PacketContext>,
+    ) -> Result<i64> {
         let packed = compress_packet(p.decoded)?;
         let conn = self.conn.lock().unwrap();
-        conn.prepare_cached("INSERT INTO packets(project_id,event_time,direction,endpoint_id,remote,protocol_id,msg_code,byte_length,hex,status,decoded_json) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)").map_err(|e|e.to_string())?.execute(params![p.project_id,p.timestamp,p.direction,p.endpoint_id,p.remote,p.protocol_id,p.msg_code,p.length,p.hex,p.status,packed]).map_err(|e|e.to_string())?;
+        conn.prepare_cached("INSERT INTO packets(project_id,event_time,direction,endpoint_id,remote,protocol_id,msg_code,byte_length,hex,status,decoded_json,run_id,node_id) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)").map_err(|e|e.to_string())?.execute(params![p.project_id,p.timestamp,p.direction,p.endpoint_id,p.remote,p.protocol_id,p.msg_code,p.length,p.hex,p.status,packed,context.map(|c|&c.run_id),context.map(|c|&c.node_id)]).map_err(|e|e.to_string())?;
         let id = conn.last_insert_rowid();
         if id % 1000 == 0 {
             conn.execute("DELETE FROM packets WHERE project_id=?1 AND id < coalesce((SELECT id FROM packets WHERE project_id=?1 ORDER BY id DESC LIMIT 1 OFFSET 49999),0)",[p.project_id]).map_err(|e|e.to_string())?;
@@ -374,11 +407,44 @@ impl Database {
         filter: &str,
         direction: &str,
     ) -> Result<Value> {
+        self.packets_scoped(
+            project,
+            offset,
+            limit,
+            filter,
+            direction,
+            PacketScope::default(),
+        )
+    }
+    pub fn packets_scoped(
+        &self,
+        project: &str,
+        offset: u64,
+        limit: u64,
+        filter: &str,
+        direction: &str,
+        scope: PacketScope<'_>,
+    ) -> Result<Value> {
         let conn = self.conn.lock().unwrap();
         let pattern = format!("%{}%", filter.chars().take(128).collect::<String>());
-        let total:i64=conn.query_row("SELECT count(*) FROM packets WHERE project_id=?1 AND (hex LIKE ?2 OR remote LIKE ?2 OR direction LIKE ?2 OR status LIKE ?2 OR endpoint_id LIKE ?2) AND (?5='' OR direction=?5)",params![project,pattern,0,0,direction],|r|r.get(0)).map_err(|e|e.to_string())?;
-        let mut q=conn.prepare("SELECT id,event_time,direction,endpoint_id,remote,msg_code,byte_length,hex,status,decoded_json FROM packets WHERE project_id=?1 AND (hex LIKE ?2 OR remote LIKE ?2 OR direction LIKE ?2 OR status LIKE ?2 OR endpoint_id LIKE ?2) AND (?5='' OR direction=?5) ORDER BY id DESC LIMIT ?3 OFFSET ?4").map_err(|e|e.to_string())?;
-        let items=q.query_map(params![project,pattern,limit.clamp(1,500),offset,direction],|r|Ok(json!({"id":r.get::<_,i64>(0)?.to_string(),"timestamp":r.get::<_,u64>(1)?,"direction":r.get::<_,String>(2)?,"endpointId":r.get::<_,String>(3)?,"remote":r.get::<_,String>(4)?,"msgCode":r.get::<_,Option<u8>>(5)?,"length":r.get::<_,usize>(6)?,"hex":r.get::<_,String>(7)?,"status":r.get::<_,String>(8)?,"decoded":packet_decoded(r,9)?}))).map_err(|e|e.to_string())?.collect::<std::result::Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
+        let predicate = "project_id=?1 AND (hex LIKE ?2 OR remote LIKE ?2 OR direction LIKE ?2 OR status LIKE ?2 OR endpoint_id LIKE ?2) AND (?5='' OR direction=?5) AND (?6 IS NULL OR run_id=?6) AND (?7 IS NULL OR endpoint_id=?7)";
+        let total: i64 = conn
+            .query_row(
+                &format!("SELECT count(*) FROM packets WHERE {predicate}"),
+                params![
+                    project,
+                    pattern,
+                    0,
+                    0,
+                    direction,
+                    scope.run_id,
+                    scope.endpoint_id
+                ],
+                |r| r.get(0),
+            )
+            .map_err(|e| e.to_string())?;
+        let mut q=conn.prepare(&format!("SELECT id,event_time,direction,endpoint_id,remote,msg_code,byte_length,hex,status,decoded_json,run_id,node_id FROM packets WHERE {predicate} ORDER BY id DESC LIMIT ?3 OFFSET ?4")).map_err(|e|e.to_string())?;
+        let items=q.query_map(params![project,pattern,limit.clamp(1,500),offset,direction,scope.run_id,scope.endpoint_id],|r|Ok(json!({"id":r.get::<_,i64>(0)?.to_string(),"timestamp":r.get::<_,u64>(1)?,"direction":r.get::<_,String>(2)?,"endpointId":r.get::<_,String>(3)?,"remote":r.get::<_,String>(4)?,"msgCode":r.get::<_,Option<u8>>(5)?,"length":r.get::<_,usize>(6)?,"hex":r.get::<_,String>(7)?,"status":r.get::<_,String>(8)?,"decoded":packet_decoded(r,9)?,"runId":r.get::<_,Option<String>>(10)?,"nodeId":r.get::<_,Option<String>>(11)?}))).map_err(|e|e.to_string())?.collect::<std::result::Result<Vec<_>,_>>().map_err(|e|e.to_string())?;
         Ok(json!({"items":items,"total":total}))
     }
 }

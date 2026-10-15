@@ -41,6 +41,15 @@ pub struct Datagram {
     pub remote: String,
     pub direction: Direction,
     pub bytes: Vec<u8>,
+    pub context: Option<PacketContext>,
+}
+
+/// Local provenance supplied by an executing flow, never inferred from wire data.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PacketContext {
+    pub run_id: String,
+    pub node_id: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -148,7 +157,7 @@ impl UdpHub {
                     received=sock.recv_from(&mut buffer)=>match received {
                         Ok((len,remote))=> {
                             counters.rx.fetch_add(1,Ordering::Relaxed);
-                            let event=Datagram{timestamp:now_ms(),endpoint_id:endpoint_id.clone(),protocol_id:protocol_id.clone(),project_id:project_id.clone(),generation:generation.clone(),cancel:token.clone(),remote:remote.to_string(),direction:Direction::Rx,bytes:buffer[..len].to_vec()};
+                            let event=Datagram{timestamp:now_ms(),endpoint_id:endpoint_id.clone(),protocol_id:protocol_id.clone(),project_id:project_id.clone(),generation:generation.clone(),cancel:token.clone(),remote:remote.to_string(),direction:Direction::Rx,bytes:buffer[..len].to_vec(),context:None};
                             if queue.try_send(event).is_err() { counters.dropped.fetch_add(1,Ordering::Relaxed); }
                         }
                         Err(error)=>{
@@ -183,6 +192,17 @@ impl UdpHub {
         bytes: &[u8],
         expected: Option<&str>,
     ) -> Result<usize, String> {
+        self.send_with_context(id, remote, bytes, expected, None)
+            .await
+    }
+    pub async fn send_with_context(
+        &self,
+        id: &str,
+        remote: &str,
+        bytes: &[u8],
+        expected: Option<&str>,
+        context: Option<PacketContext>,
+    ) -> Result<usize, String> {
         if bytes.len() > 65507 {
             return Err("UDP数据报超过65507字节".into());
         }
@@ -209,6 +229,7 @@ impl UdpHub {
                 remote: target.to_string(),
                 direction: Direction::Tx,
                 bytes: bytes.to_vec(),
+                context,
             })
             .is_err()
         {

@@ -9,7 +9,7 @@ fn publish(engine: &mut FlowEngine, definition: Value) {
 fn waiting_flow(id: &str, retries: u32) -> Value {
     json!({"id":id,"nodes":[
       {"id":"start","type":"START"},
-      {"id":"send","type":"SEND_AND_WAIT","data":{"code":1,"expectedCodes":[2],"timeoutMs":100,"retries":retries,"retryIntervalMs":20,"values":{"srcAddr":[0,0,59],"dstAddr":[0,0,1],"sessionId":0}}},
+      {"id":"send","type":"SEND_AND_WAIT","data":{"code":1,"expectedCodes":[2],"timeoutMs":100,"retries":retries,"retryIntervalMs":20,"match":{"sessionMatcher":{"type":"ASSIGNED"}},"values":{"srcAddr":[0,0,59],"dstAddr":[0,0,1],"sessionId":0}}},
       {"id":"end","type":"END"},{"id":"error","type":"ERROR"}],
       "edges":[{"source":"start","target":"send"},{"source":"send","target":"end","label":"matched"},{"source":"send","target":"error","label":"timeout"},{"source":"send","target":"error","label":"error"}]})
 }

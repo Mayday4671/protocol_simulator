@@ -1,6 +1,6 @@
 [package]
 name = "musp-studio"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "MUSP Studio Windows protocol and UDP workbench"
 
