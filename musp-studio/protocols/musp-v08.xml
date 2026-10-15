@@ -1,0 +1,451 @@
+<?xml version='1.0' encoding='utf-8'?>
+<protocol id="musp-v08" nameZh="MUSP v0.8 业务样例" version="0.8.0" schemaVersion="1" byteOrder="big" maxPacketBytes="65507">
+  <fragments>
+    <fragment id="muspHeader23" nameZh="MUSP 基础公共头（23B）" section="header">
+      <field key="magic" labelZh="同步头" bytes="2" display="HEX" valueKind="bytes" fixed="AA 55" />
+      <field key="version" labelZh="协议版本" bytes="1" fixed="01" />
+      <field key="headerLength" labelZh="头部长度" bytes="1" computed="headerTotalLength" />
+      <field key="totalLength" labelZh="报文总长度" bytes="2" computed="packetTotalLength" />
+      <field key="msgCode" labelZh="信令码" bytes="1" binding="message.code" />
+      <field key="srcAddr" labelZh="源设备地址" bytes="3" binding="sender.protocolAddress" />
+      <field key="dstAddr" labelZh="目标设备地址" bytes="3" binding="receiver.protocolAddress" />
+      <field key="flags" labelZh="公共头标志位" bytes="1" valueKind="bitset" default="00">
+        <bits>
+          <bit key="hasAuth" labelZh="携带认证扩展" start="0" width="1" />
+          <bit key="isResponse" labelZh="响应" start="1" width="1" />
+        </bits>
+      </field>
+      <field key="reserved" labelZh="保留字节" bytes="1" fixed="00" />
+      <field key="transactionId" labelZh="事务序号" bytes="4" binding="flow.transactionId" />
+      <field key="sessionId" labelZh="会话ID" bytes="2" binding="session.id" default="00 00" />
+      <field key="bodyLength" labelZh="业务体长度" bytes="2" computed="bodyTotalLength" />
+    </fragment>
+    <fragment id="authTLV" nameZh="认证扩展" section="headerExtension">
+      <field key="tokenType" labelZh="认证类型" bytes="1" fixed="A1" />
+      <field key="tokenLength" labelZh="认证长度" bytes="1" computed="len(token)" />
+      <field key="token" labelZh="认证信息" lengthExpr="tokenLength" valueKind="bytes" binding="session.authToken" secret="true" />
+    </fragment>
+    <fragment id="configCommon8" nameZh="配置通用段（候选结构）" section="body">
+      <field key="configFlags" labelZh="配置控制标志" bytes="1" valueKind="bitset" default="81">
+        <bits>
+          <bit key="atomic" labelZh="原子性（候选）" start="7" width="1" />
+          <bit key="end" labelZh="结束标识（候选）" start="0" width="1" />
+        </bits>
+      </field>
+      <field key="batchId" labelZh="批次编号（待确认）" bytes="2" default="00 01" />
+      <field key="segmentNo" labelZh="分段编号（待确认）" bytes="2" default="00 01" />
+      <field key="reserved" labelZh="保留字节" bytes="3" valueKind="bytes" fixed="00 00 00" />
+    </fragment>
+    <fragment id="configSetPrefix10" nameZh="配置请求前缀10B" section="body">
+      <field key="configMode" labelZh="配置模式" bytes="1" default="02">
+        <enum hex="01" labelZh="多设备配置" />
+        <enum hex="02" labelZh="单设备多组参数" />
+      </field>
+      <field key="operation" labelZh="操作类型" bytes="1" default="01" />
+      <field key="itemCount" labelZh="配置条目数" bytes="1" valueKind="uint" default="05" />
+      <field key="itemSize" labelZh="单条长度" bytes="1" valueKind="uint" default="0A" />
+      <field key="targetDeviceAddr" labelZh="目标设备地址" bytes="3" binding="device.address('MUSP')" />
+      <field key="configVersion" labelZh="配置版本" bytes="2" default="00 01" />
+      <field key="reserved" labelZh="保留字节" bytes="1" fixed="00" />
+    </fragment>
+    <fragment id="deviceItem10" nameZh="一条设备实例配置10B" section="body">
+      <field key="deviceAddr" labelZh="设备地址" bytes="3" />
+      <field key="deviceType" labelZh="设备类型" bytes="1" />
+      <field key="deviceNumericId" labelZh="设备业务编号" bytes="4" />
+      <field key="initialParameter" labelZh="初始参数" bytes="2" />
+    </fragment>
+    <fragment id="channelItem10" nameZh="一条通道参数10B" section="body">
+      <field key="channelId" labelZh="通道编号" bytes="1" />
+      <field key="configType" labelZh="配置类型" bytes="1" />
+      <field key="centerFreqHz" labelZh="中心频率" bytes="4" valueKind="uint" unit="Hz" />
+      <field key="powerLevel" labelZh="功率级别" bytes="2" valueKind="uint" />
+      <field key="enabled" labelZh="启用" bytes="1" valueKind="uint">
+        <enum hex="00" labelZh="关闭" />
+        <enum hex="01" labelZh="启用" />
+      </field>
+      <field key="reserved" labelZh="保留" bytes="1" fixed="00" />
+    </fragment>
+    <fragment id="crcCcittFalse2" nameZh="CRC16/CCITT-FALSE" section="trailer">
+      <field key="crc16" labelZh="CRC16" bytes="2" computed="crc16CcittFalse(packetWithoutTrailer)" />
+    </fragment>
+  </fragments>
+  <messages>
+    <message id="CONFIG_SET" code="0x21" nameZh="设备配置请求" responseCodes="0x22">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <use ref="configCommon8" enabled="true" />
+        <use ref="configSetPrefix10" />
+        <array key="items" labelZh="配置条目数组" countRef="body.itemCount" elementSizeRef="body.itemSize" maxItems="20">
+          <variant selector="body.configMode" equals="0x01" ref="deviceItem10" />
+          <variant selector="body.configMode" equals="0x02" ref="channelItem10" />
+        </array>
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message id="CONFIG_RESULT" code="0x22" nameZh="设备配置响应">
+      <header ref="muspHeader23" />
+      <body>
+        <field key="itemCount" labelZh="配置条目数" bytes="1" valueKind="uint" />
+        <array key="results" labelZh="逐条配置结果" countRef="body.itemCount" elementBytes="1" maxItems="20">
+          <field key="result" labelZh="条目结果" bytes="1" valueKind="uint">
+            <enum hex="AA" labelZh="配置成功" />
+          </field>
+        </array>
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x01" id="REGISTER_REQ" nameZh="开机注册请求" responseCodes="0x02">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="deviceType" labelZh="设备类型" display="HEX" bytes="1" />
+        <field key="deviceNumericId" labelZh="设备业务编号" display="HEX" bytes="4" />
+        <field key="bootReason" labelZh="启动原因" display="HEX" bytes="1" />
+        <field key="capabilityFlags" labelZh="能力标志" display="HEX" bytes="2" />
+        <field key="configVersion" labelZh="配置版本" display="HEX" bytes="2" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x02" id="REGISTER_LICENSE" nameZh="注册许可">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="validSeconds" labelZh="许可有效时间" display="HEX" bytes="4" />
+        <field key="authMode" labelZh="认证模式" display="HEX" bytes="1" />
+        <field key="reserved" labelZh="保留字段" display="HEX" bytes="1" fixed="00" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x03" id="REGISTER_CONFIRM" nameZh="注册确认" responseCodes="0x04">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="deviceNumericId" labelZh="设备业务编号" display="HEX" bytes="4" />
+        <field key="confirmResult" labelZh="确认结果" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x04" id="REGISTER_COMPLETE" nameZh="注册完成">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="acceptedCapabilities" labelZh="已确认能力标志" display="HEX" bytes="2" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x11" id="AUTH_ISSUE" nameZh="认证信息下发" responseCodes="0x12">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="tokenValidSeconds" labelZh="Token 有效时间" display="HEX" bytes="4" />
+        <field key="tokenLength" labelZh="Token 长度" display="HEX" bytes="1" />
+        <field key="token" labelZh="Token 数据" display="HEX" lengthExpr="tokenLength" valueKind="bytes" secret="true" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x12" id="AUTH_ACK" nameZh="认证接收确认">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x31" id="HEARTBEAT_REQ" nameZh="心跳请求" responseCodes="0x32">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="uptimeSeconds" labelZh="开机运行时间" display="HEX" bytes="4" />
+        <field key="statusFlags" labelZh="状态标志" display="HEX" bytes="2" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x32" id="HEARTBEAT_RSP" nameZh="心跳响应">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="serverTimeSeconds" labelZh="服务端时间秒值" display="HEX" bytes="4" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x41" id="STATUS_REPORT" nameZh="状态上报">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="deviceState" labelZh="设备状态" display="HEX" bytes="1" />
+        <field key="channelCount" labelZh="通道数量" display="HEX" bytes="1" />
+        <field key="voltageMv" labelZh="电压毫伏值" display="HEX" bytes="2" />
+        <field key="temperatureCentiC" labelZh="温度百分之一摄氏度" display="HEX" bytes="2" valueKind="int" />
+        <array key="channels" labelZh="通道状态" countRef="body.channelCount" elementBytes="6" maxItems="255">
+          <field key="channelId" labelZh="通道编号" display="HEX" bytes="1" />
+          <field key="level" labelZh="电平" display="HEX" bytes="2" valueKind="int" />
+          <field key="freqOffsetHz" labelZh="频偏" display="HEX" bytes="2" valueKind="int" />
+          <field key="enabled" labelZh="启用标记" display="HEX" bytes="1" />
+        </array>
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x51" id="BUSINESS_CMD" nameZh="业务命令" responseCodes="0x52">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="commandType" labelZh="命令类型" display="HEX" bytes="1" />
+        <field key="paramLength" labelZh="参数长度" display="HEX" bytes="2" />
+        <field key="params" labelZh="参数内容" display="HEX" lengthExpr="paramLength" valueKind="bytes" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x52" id="BUSINESS_RESULT" nameZh="业务结果">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="errorCode" labelZh="业务错误码" display="HEX" bytes="2" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x60" id="VIDEO_CALL_REQ" nameZh="视频通话申请" responseCodes="0x61">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="calleeAddr" labelZh="被叫设备地址" display="HEX" bytes="3" />
+        <field key="mediaType" labelZh="媒体类型" display="HEX" bytes="1" />
+        <field key="requestTxKbps" labelZh="申请发送带宽" display="HEX" bytes="2" />
+        <field key="requestRxKbps" labelZh="申请接收带宽" display="HEX" bytes="2" />
+        <field key="codecFlags" labelZh="编码能力" display="HEX" bytes="2" />
+        <field key="priority" labelZh="业务优先级" display="HEX" bytes="1" />
+        <field key="reserved" labelZh="保留字段" display="HEX" bytes="1" fixed="00" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x61" id="VIDEO_CALL_RSP" nameZh="视频通话响应">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="mediaType" labelZh="媒体类型" display="HEX" bytes="1" />
+        <field key="callState" labelZh="状态" display="HEX" bytes="1" />
+        <field key="reserved" labelZh="保留字段" display="HEX" bytes="1" fixed="00" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x62" id="PAGING_REQ" nameZh="寻呼请求" responseCodes="0x63">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callerAddr" labelZh="主叫地址" display="HEX" bytes="3" />
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="mediaType" labelZh="媒体类型" display="HEX" bytes="1" />
+        <field key="suggestTxKbps" labelZh="建议发送带宽" display="HEX" bytes="2" />
+        <field key="suggestRxKbps" labelZh="建议接收带宽" display="HEX" bytes="2" />
+        <field key="responseTimeoutSec" labelZh="应答期限" display="HEX" bytes="2" />
+        <field key="reserved" labelZh="保留字段" display="HEX" bytes="1" fixed="00" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x63" id="PAGING_RSP" nameZh="寻呼响应">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="pagingResult" labelZh="寻呼结果" display="HEX" bytes="1" />
+        <field key="acceptedMedia" labelZh="接受的媒体能力" display="HEX" bytes="1" />
+        <field key="reserved" labelZh="保留字段" display="HEX" bytes="1" fixed="00" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x64" id="CALL_NOTIFY" nameZh="通话许可通知">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="peerAddr" labelZh="对端地址" display="HEX" bytes="3" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x65" id="VOICE_CALL_REQ" nameZh="单端语音申请" responseCodes="0x66">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="serviceType" labelZh="业务类型" display="HEX" bytes="1" />
+        <field key="requestTxKbps" labelZh="申请发送带宽" display="HEX" bytes="2" />
+        <field key="requestRxKbps" labelZh="申请接收带宽" display="HEX" bytes="2" />
+        <field key="codecType" labelZh="编码类型" display="HEX" bytes="1" />
+        <field key="priority" labelZh="业务优先级" display="HEX" bytes="1" />
+        <field key="reserved" labelZh="保留字段" display="HEX" bytes="1" fixed="00" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x66" id="VOICE_CALL_RSP" nameZh="语音通话响应">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="callState" labelZh="状态" display="HEX" bytes="1" />
+        <field key="reserved" labelZh="保留字段" display="HEX" bytes="1" fixed="00" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x70" id="RX_RESOURCE_CFG" nameZh="接收资源配置" responseCodes="0x72">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="resourceId" labelZh="接收资源标识" display="HEX" bytes="2" />
+        <field key="assignedRxKbps" labelZh="分配接收带宽" display="HEX" bytes="2" />
+        <field key="rxFreqKHz" labelZh="接收中心频率" display="HEX" bytes="4" />
+        <field key="slotIndex" labelZh="时隙号" display="HEX" bytes="2" />
+        <field key="resourceVersion" labelZh="资源配置版本" display="HEX" bytes="2" />
+        <field key="applyFlag" labelZh="生效标志" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x71" id="TX_RESOURCE_CFG" nameZh="发送资源配置" responseCodes="0x72">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="resourceId" labelZh="接收资源标识" display="HEX" bytes="2" />
+        <field key="assignedTxKbps" labelZh="分配发送带宽" display="HEX" bytes="2" />
+        <field key="txFreqKHz" labelZh="发送中心频率" display="HEX" bytes="4" />
+        <field key="slotIndex" labelZh="时隙号" display="HEX" bytes="2" />
+        <field key="resourceVersion" labelZh="资源配置版本" display="HEX" bytes="2" />
+        <field key="applyFlag" labelZh="生效标志" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x72" id="RESOURCE_CFG_ACK" nameZh="资源配置确认">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="resourceId" labelZh="接收资源标识" display="HEX" bytes="2" />
+        <field key="direction" labelZh="配置方向" display="HEX" bytes="1" />
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="reserved" labelZh="保留字段" display="HEX" bytes="1" fixed="00" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x73" id="CALL_RELEASE_REQ" nameZh="通话结束申请" responseCodes="0x74">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="reasonCode" labelZh="释放原因" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x74" id="CALL_RELEASE_RSP" nameZh="通话结束受理">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x75" id="CALL_READY_NOTIFY" nameZh="通话就绪通知">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="eventType" labelZh="事件类型" display="HEX" bytes="1" />
+        <field key="readyCode" labelZh="启用结果" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x76" id="RESOURCE_RELEASE_CFG" nameZh="资源撤销配置" responseCodes="0x77">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="resourceId" labelZh="接收资源标识" display="HEX" bytes="2" />
+        <field key="direction" labelZh="配置方向" display="HEX" bytes="1" />
+        <field key="resourceVersion" labelZh="资源配置版本" display="HEX" bytes="2" />
+        <field key="releaseReason" labelZh="撤销原因" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x77" id="RESOURCE_RELEASE_ACK" nameZh="资源撤销确认">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="resourceId" labelZh="接收资源标识" display="HEX" bytes="2" />
+        <field key="direction" labelZh="配置方向" display="HEX" bytes="1" />
+        <field key="resourceVersion" labelZh="资源配置版本" display="HEX" bytes="2" />
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x78" id="CALL_END_NOTIFY" nameZh="通话终止通知">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="reasonCode" labelZh="释放原因" display="HEX" bytes="1" />
+        <field key="initiatorAddr" labelZh="发起结束方地址" display="HEX" bytes="3" />
+        <field key="stopMode" labelZh="业务停止策略" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x79" id="CALL_EVENT_ACK" nameZh="通话事件确认">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="eventType" labelZh="事件类型" display="HEX" bytes="1" />
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x7A" id="CALL_END_RESULT" nameZh="通话结束结果">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="unknownCount" labelZh="待核实资源数量" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x7B" id="CALL_CANCEL_REQ" nameZh="取消通话申请" responseCodes="0x7C">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="originalTransactionId" labelZh="原申请事务序号" display="HEX" bytes="4" />
+        <field key="cancelReason" labelZh="取消原因" display="HEX" bytes="1" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x7C" id="CALL_CANCEL_RSP" nameZh="取消申请响应">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="resultCode" labelZh="许可结果" display="HEX" bytes="1" />
+        <field key="reserved" labelZh="保留字段" display="HEX" bytes="1" fixed="00" />
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+    <message code="0x7D" id="DEVICE_OFFLINE_NOTIFY" nameZh="设备主动离线">
+      <header ref="muspHeader23" />
+      <headerExtension ref="authTLV" when="bit(header.flags,0)==1" />
+      <body>
+        <field key="offlineReason" labelZh="离线原因" display="HEX" bytes="1" />
+        <field key="offlineMode" labelZh="离线方式" display="HEX" bytes="1" />
+        <field key="activeCallCount" labelZh="当前通话数量" display="HEX" bytes="1" />
+        <array key="callIds" labelZh="通话标识列表" countRef="body.activeCallCount" elementBytes="2" maxItems="255">
+          <field key="callId" labelZh="呼叫标识" display="HEX" bytes="2" />
+        </array>
+      </body>
+      <trailer ref="crcCcittFalse2" />
+    </message>
+  </messages>
+</protocol>

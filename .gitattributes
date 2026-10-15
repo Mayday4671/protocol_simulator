@@ -1,0 +1,7 @@
+* text=auto
+# Preserve supplied documents and release checksums byte for byte.
+docs/** -text
+musp-studio/release/** -text
+*.png binary
+*.jpg binary
+*.ico binary

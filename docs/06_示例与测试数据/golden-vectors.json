@@ -1,0 +1,16 @@
+{
+  "request": {
+    "hex": "AA 55 01 1D 00 63 21 00 00 01 00 00 3B 01 00 00 00 00 65 12 34 00 44 A1 04 DE AD BE EF 81 00 01 00 01 00 00 00 02 01 05 0A 00 00 3B 00 01 00 01 01 00 0F 42 40 00 0A 01 00 02 01 00 0F 42 A4 00 0B 01 00 03 01 00 0F 43 08 00 0C 01 00 04 01 00 0F 43 6C 00 0D 01 00 05 01 00 0F 43 D0 00 0E 01 00 D3 5D",
+    "lengthBytes": 99,
+    "crc": "D3 5D",
+    "bodyLengthBytes": 68,
+    "headerLengthBytes": 29
+  },
+  "response": {
+    "hex": "AA 55 01 17 00 1F 22 00 00 3B 00 00 01 02 00 00 00 00 65 12 34 00 06 05 AA AA AA AA AA FE CB",
+    "lengthBytes": 31,
+    "crc": "FE CB",
+    "bodyLengthBytes": 6,
+    "headerLengthBytes": 23
+  }
+}

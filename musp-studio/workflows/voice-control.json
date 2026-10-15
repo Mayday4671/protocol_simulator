@@ -1,0 +1,498 @@
+{
+  "id": "voice-control",
+  "nameZh": "控制侧语音许可与两项资源",
+  "version": "1.0.0",
+  "schemaVersion": 1,
+  "description": "先等待外部设备真实申请。参与设备须已注册，资源池须已建立。A/B可共用一个UDP端点；频点和带宽仅为可编辑测试值。",
+  "protocol": {
+    "id": "MUSP_PROTOCOL_VERSION",
+    "version": "0.8"
+  },
+  "config": {
+    "maxDurationMs": 120000,
+    "maxSteps": 20000,
+    "maxConcurrentInstances": 200
+  },
+  "defaultVariables": {
+    "controllerAddress": "00 00 01",
+    "deviceAAddress": "00 00 3B",
+    "deviceBAddress": "00 00 3C",
+    "sessionA": 1,
+    "sessionB": 1,
+    "wireCallId": 8194,
+    "startMode": "CONTROL_NOTIFY",
+    "assignedRxKbps": 64,
+    "assignedTxKbps": 64,
+    "resourceVersion": 1,
+    "rxFreqKHz": 1000000,
+    "txFreqKHz": 1001000
+  },
+  "inputs": [
+    "systemId",
+    "endpointId",
+    "remote",
+    "deviceAId",
+    "poolId",
+    "sessionA"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "START",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {}
+    },
+    {
+      "id": "wait-request",
+      "type": "WAIT_PACKET",
+      "position": {
+        "x": 280,
+        "y": 0
+      },
+      "data": {
+        "code": 101,
+        "expectedCodes": [
+          101
+        ],
+        "timeoutMs": 60000,
+        "noTransactionId": true,
+        "values": {
+          "srcAddr": "${controllerAddress}",
+          "dstAddr": "${deviceAAddress}",
+          "sessionId": "${sessionA}"
+        }
+      }
+    },
+    {
+      "id": "save-request",
+      "type": "ASSIGN",
+      "position": {
+        "x": 560,
+        "y": 0
+      },
+      "data": {
+        "set": [
+          {
+            "path": "requestTxn",
+            "from": "response.header.transactionId"
+          },
+          {
+            "path": "requestRx",
+            "from": "response.body.requestRxKbps"
+          },
+          {
+            "path": "requestTx",
+            "from": "response.body.requestTxKbps"
+          }
+        ]
+      }
+    },
+    {
+      "id": "create-call",
+      "type": "UPDATE_CALL",
+      "position": {
+        "x": 840,
+        "y": 0
+      },
+      "data": {
+        "operation": "create_call",
+        "participants": [
+          "${deviceAId}"
+        ],
+        "wireCallId": "${wireCallId}",
+        "kind": "VOICE",
+        "startMode": "${startMode}"
+      }
+    },
+    {
+      "id": "save-call",
+      "type": "ASSIGN",
+      "position": {
+        "x": 1120,
+        "y": 0
+      },
+      "data": {
+        "set": [
+          {
+            "path": "callUuid",
+            "from": "step.callId"
+          }
+        ]
+      }
+    },
+    {
+      "id": "permit",
+      "type": "UPDATE_CALL",
+      "position": {
+        "x": 0,
+        "y": 150
+      },
+      "data": {
+        "operation": "permit_call",
+        "callId": "${callUuid}"
+      }
+    },
+    {
+      "id": "license",
+      "type": "SEND",
+      "position": {
+        "x": 280,
+        "y": 150
+      },
+      "data": {
+        "code": 102,
+        "values": {
+          "srcAddr": "${controllerAddress}",
+          "dstAddr": "${deviceAAddress}",
+          "sessionId": "${sessionA}",
+          "body": {
+            "resultCode": 0,
+            "callId": "${wireCallId}",
+            "callState": 1
+          },
+          "transactionId": "${requestTxn}"
+        }
+      }
+    },
+    {
+      "id": "a-rx-reserve",
+      "type": "UPDATE_RESOURCE",
+      "position": {
+        "x": 560,
+        "y": 150
+      },
+      "data": {
+        "operation": "reserve_resource",
+        "callId": "${callUuid}",
+        "deviceId": "${deviceAId}",
+        "resourceId": 12289,
+        "direction": "RX",
+        "version": "${resourceVersion}",
+        "poolId": "${poolId}",
+        "requestedBw": "${requestRx}",
+        "assignedBw": "${assignedRxKbps}"
+      }
+    },
+    {
+      "id": "a-rx-mark",
+      "type": "UPDATE_RESOURCE",
+      "position": {
+        "x": 840,
+        "y": 150
+      },
+      "data": {
+        "operation": "mark_configuring",
+        "resourceUuid": "${step.resourceUuid}"
+      }
+    },
+    {
+      "id": "a-rx-configure",
+      "type": "SEND_AND_WAIT",
+      "position": {
+        "x": 1120,
+        "y": 150
+      },
+      "data": {
+        "code": 112,
+        "values": {
+          "srcAddr": "${controllerAddress}",
+          "dstAddr": "${deviceAAddress}",
+          "sessionId": "${sessionA}",
+          "body": {
+            "callId": "${wireCallId}",
+            "resourceId": 12289,
+            "assignedRxKbps": "${assignedRxKbps}",
+            "rxFreqKHz": "${rxFreqKHz}",
+            "slotIndex": 1,
+            "resourceVersion": "${resourceVersion}",
+            "applyFlag": 1
+          }
+        },
+        "expectedCodes": [
+          114
+        ],
+        "timeoutMs": 2000,
+        "retries": 2,
+        "retryIntervalMs": 200
+      }
+    },
+    {
+      "id": "a-rx-check",
+      "type": "CONDITION",
+      "position": {
+        "x": 0,
+        "y": 300
+      },
+      "data": {
+        "expression": "response.body.resultCode == 0"
+      }
+    },
+    {
+      "id": "a-tx-reserve",
+      "type": "UPDATE_RESOURCE",
+      "position": {
+        "x": 280,
+        "y": 300
+      },
+      "data": {
+        "operation": "reserve_resource",
+        "callId": "${callUuid}",
+        "deviceId": "${deviceAId}",
+        "resourceId": 12290,
+        "direction": "TX",
+        "version": "${resourceVersion}",
+        "poolId": "${poolId}",
+        "requestedBw": "${requestTx}",
+        "assignedBw": "${assignedTxKbps}"
+      }
+    },
+    {
+      "id": "a-tx-mark",
+      "type": "UPDATE_RESOURCE",
+      "position": {
+        "x": 560,
+        "y": 300
+      },
+      "data": {
+        "operation": "mark_configuring",
+        "resourceUuid": "${step.resourceUuid}"
+      }
+    },
+    {
+      "id": "a-tx-configure",
+      "type": "SEND_AND_WAIT",
+      "position": {
+        "x": 840,
+        "y": 300
+      },
+      "data": {
+        "code": 113,
+        "values": {
+          "srcAddr": "${controllerAddress}",
+          "dstAddr": "${deviceAAddress}",
+          "sessionId": "${sessionA}",
+          "body": {
+            "callId": "${wireCallId}",
+            "resourceId": 12290,
+            "assignedTxKbps": "${assignedTxKbps}",
+            "txFreqKHz": "${txFreqKHz}",
+            "slotIndex": 2,
+            "resourceVersion": "${resourceVersion}",
+            "applyFlag": 1
+          }
+        },
+        "expectedCodes": [
+          114
+        ],
+        "timeoutMs": 2000,
+        "retries": 2,
+        "retryIntervalMs": 200
+      }
+    },
+    {
+      "id": "a-tx-check",
+      "type": "CONDITION",
+      "position": {
+        "x": 1120,
+        "y": 300
+      },
+      "data": {
+        "expression": "response.body.resultCode == 0"
+      }
+    },
+    {
+      "id": "choose-start",
+      "type": "CONDITION",
+      "position": {
+        "x": 0,
+        "y": 450
+      },
+      "data": {
+        "expression": "startMode == \"CONTROL_NOTIFY\""
+      }
+    },
+    {
+      "id": "ready-a",
+      "type": "SEND_AND_WAIT",
+      "position": {
+        "x": 280,
+        "y": 450
+      },
+      "data": {
+        "code": 117,
+        "values": {
+          "srcAddr": "${controllerAddress}",
+          "dstAddr": "${deviceAAddress}",
+          "sessionId": "${sessionA}",
+          "body": {
+            "callId": "${wireCallId}",
+            "eventType": 1,
+            "readyCode": 0
+          }
+        },
+        "expectedCodes": [
+          121
+        ],
+        "timeoutMs": 2000,
+        "retries": 2,
+        "retryIntervalMs": 200
+      }
+    },
+    {
+      "id": "check-ready-a",
+      "type": "CONDITION",
+      "position": {
+        "x": 560,
+        "y": 450
+      },
+      "data": {
+        "expression": "response.body.resultCode == 0"
+      }
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "position": {
+        "x": 840,
+        "y": 450
+      },
+      "data": {}
+    },
+    {
+      "id": "error",
+      "type": "ERROR",
+      "position": {
+        "x": 1120,
+        "y": 450
+      },
+      "data": {
+        "message": "通话未建立或资源未确认；按实际结果补偿清理，UNKNOWN不得回池"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "start",
+      "target": "wait-request"
+    },
+    {
+      "source": "wait-request",
+      "target": "error",
+      "label": "timeout"
+    },
+    {
+      "source": "wait-request",
+      "target": "save-request",
+      "label": "matched"
+    },
+    {
+      "source": "save-request",
+      "target": "create-call"
+    },
+    {
+      "source": "create-call",
+      "target": "save-call"
+    },
+    {
+      "source": "save-call",
+      "target": "permit"
+    },
+    {
+      "source": "permit",
+      "target": "license"
+    },
+    {
+      "source": "license",
+      "target": "a-rx-reserve"
+    },
+    {
+      "source": "a-rx-reserve",
+      "target": "a-rx-mark"
+    },
+    {
+      "source": "a-rx-mark",
+      "target": "a-rx-configure"
+    },
+    {
+      "source": "a-rx-configure",
+      "target": "error",
+      "label": "timeout"
+    },
+    {
+      "source": "a-rx-configure",
+      "target": "a-rx-check",
+      "label": "matched"
+    },
+    {
+      "source": "a-rx-check",
+      "target": "error",
+      "label": "false"
+    },
+    {
+      "source": "a-rx-check",
+      "target": "a-tx-reserve",
+      "label": "true"
+    },
+    {
+      "source": "a-tx-reserve",
+      "target": "a-tx-mark"
+    },
+    {
+      "source": "a-tx-mark",
+      "target": "a-tx-configure"
+    },
+    {
+      "source": "a-tx-configure",
+      "target": "error",
+      "label": "timeout"
+    },
+    {
+      "source": "a-tx-configure",
+      "target": "a-tx-check",
+      "label": "matched"
+    },
+    {
+      "source": "a-tx-check",
+      "target": "error",
+      "label": "false"
+    },
+    {
+      "source": "a-tx-check",
+      "target": "choose-start",
+      "label": "true"
+    },
+    {
+      "source": "choose-start",
+      "target": "end",
+      "label": "false"
+    },
+    {
+      "source": "choose-start",
+      "target": "ready-a",
+      "label": "true"
+    },
+    {
+      "source": "ready-a",
+      "target": "error",
+      "label": "timeout"
+    },
+    {
+      "source": "ready-a",
+      "target": "check-ready-a",
+      "label": "matched"
+    },
+    {
+      "source": "check-ready-a",
+      "target": "error",
+      "label": "false"
+    },
+    {
+      "source": "check-ready-a",
+      "target": "end",
+      "label": "true"
+    }
+  ]
+}

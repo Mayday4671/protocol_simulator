@@ -1,0 +1,271 @@
+{
+  "id": "register-authenticated",
+  "nameZh": "注册—独立认证下发",
+  "version": "1.0.0",
+  "schemaVersion": 1,
+  "description": "需要先创建本地设备并填写deviceId。只接受authMode=1；等待同一端点/协议/控制端/会话的AUTH_ISSUE，真实发送0x12后读取会话Token，以认证扩展发送0x03。认证过期或作用域不符时失败，Token不写入日志。",
+  "protocol": {
+    "id": "MUSP_PROTOCOL_VERSION",
+    "version": "0.8"
+  },
+  "config": {
+    "maxDurationMs": 120000,
+    "maxSteps": 20000,
+    "maxConcurrentInstances": 200
+  },
+  "defaultVariables": {
+    "deviceAddress": "00 00 3B",
+    "controllerAddress": "00 00 01",
+    "deviceNumericId": 59
+  },
+  "inputs": [
+    "systemId",
+    "endpointId",
+    "remote",
+    "deviceId"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "START",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {}
+    },
+    {
+      "id": "register",
+      "type": "SEND_AND_WAIT",
+      "position": {
+        "x": 280,
+        "y": 0
+      },
+      "data": {
+        "label": "register",
+        "code": 1,
+        "values": {
+          "srcAddr": "${deviceAddress}",
+          "dstAddr": "${controllerAddress}",
+          "sessionId": 0,
+          "body": {
+            "deviceType": 1,
+            "deviceNumericId": "${deviceNumericId}",
+            "bootReason": 1,
+            "capabilityFlags": 3,
+            "configVersion": 1
+          }
+        },
+        "expectedCodes": [
+          2
+        ],
+        "timeoutMs": 2000,
+        "retries": 2,
+        "retryIntervalMs": 200
+      }
+    },
+    {
+      "id": "check-license",
+      "type": "CONDITION",
+      "position": {
+        "x": 560,
+        "y": 0
+      },
+      "data": {
+        "expression": "response.body.resultCode == 0 && response.body.authMode == 1"
+      }
+    },
+    {
+      "id": "save-session",
+      "type": "ASSIGN",
+      "position": {
+        "x": 840,
+        "y": 0
+      },
+      "data": {
+        "set": [
+          {
+            "path": "sessionId",
+            "from": "response.header.sessionId"
+          }
+        ]
+      }
+    },
+    {
+      "id": "confirm",
+      "type": "SEND_AND_WAIT",
+      "position": {
+        "x": 1120,
+        "y": 0
+      },
+      "data": {
+        "label": "confirm",
+        "code": 3,
+        "values": {
+          "srcAddr": "${deviceAddress}",
+          "dstAddr": "${controllerAddress}",
+          "sessionId": "${sessionId}",
+          "body": {
+            "deviceNumericId": "${deviceNumericId}",
+            "confirmResult": 0
+          },
+          "flags": 1,
+          "session": {
+            "authToken": "${authToken}"
+          }
+        },
+        "expectedCodes": [
+          4
+        ],
+        "timeoutMs": 2000,
+        "retries": 2,
+        "retryIntervalMs": 200
+      }
+    },
+    {
+      "id": "check-complete",
+      "type": "CONDITION",
+      "position": {
+        "x": 0,
+        "y": 150
+      },
+      "data": {
+        "expression": "response.body.resultCode == 0"
+      }
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "position": {
+        "x": 280,
+        "y": 150
+      },
+      "data": {}
+    },
+    {
+      "id": "error",
+      "type": "ERROR",
+      "position": {
+        "x": 560,
+        "y": 150
+      },
+      "data": {
+        "message": "认证注册未完成：许可、认证下发、Token或完成响应无效"
+      }
+    },
+    {
+      "id": "wait-auth",
+      "type": "WAIT_EVENT",
+      "position": {
+        "x": 840,
+        "y": 150
+      },
+      "data": {
+        "event": "AUTH_READY",
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "session-token",
+      "type": "UPDATE_SESSION",
+      "position": {
+        "x": 1120,
+        "y": 150
+      },
+      "data": {
+        "operation": "session_token",
+        "deviceId": "${deviceId}",
+        "sessionId": "${sessionId}"
+      }
+    },
+    {
+      "id": "save-token",
+      "type": "ASSIGN",
+      "position": {
+        "x": 1400,
+        "y": 150
+      },
+      "data": {
+        "set": [
+          {
+            "path": "authToken",
+            "from": "step.token"
+          }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "register",
+      "target": "error",
+      "label": "timeout"
+    },
+    {
+      "source": "check-license",
+      "target": "save-session",
+      "label": "true"
+    },
+    {
+      "source": "check-license",
+      "target": "error",
+      "label": "false"
+    },
+    {
+      "source": "confirm",
+      "target": "error",
+      "label": "timeout"
+    },
+    {
+      "source": "check-complete",
+      "target": "end",
+      "label": "true"
+    },
+    {
+      "source": "check-complete",
+      "target": "error",
+      "label": "false"
+    },
+    {
+      "source": "start",
+      "target": "register"
+    },
+    {
+      "source": "register",
+      "target": "check-license",
+      "label": "matched"
+    },
+    {
+      "source": "save-session",
+      "target": "wait-auth"
+    },
+    {
+      "source": "confirm",
+      "target": "check-complete",
+      "label": "matched"
+    },
+    {
+      "source": "wait-auth",
+      "target": "session-token",
+      "label": "event"
+    },
+    {
+      "source": "wait-auth",
+      "target": "error",
+      "label": "timeout"
+    },
+    {
+      "source": "session-token",
+      "target": "save-token"
+    },
+    {
+      "source": "session-token",
+      "target": "error",
+      "label": "error"
+    },
+    {
+      "source": "save-token",
+      "target": "confirm"
+    }
+  ]
+}

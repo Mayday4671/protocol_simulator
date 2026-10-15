@@ -1,0 +1,157 @@
+{
+  "id": "config-devices-5",
+  "nameZh": "五条配置映射五台设备",
+  "version": "1.0.0",
+  "schemaVersion": 1,
+  "description": "MUSP v0.8 配置示例。逐条0xAA及数量匹配后才提交；全量更新不会重置已注册设备的状态。配置通用8B按所选协议Schema定义。",
+  "protocol": {
+    "id": "MUSP_PROTOCOL_VERSION",
+    "version": "0.8"
+  },
+  "config": {
+    "maxDurationMs": 120000,
+    "maxSteps": 20000,
+    "maxConcurrentInstances": 200
+  },
+  "defaultVariables": {
+    "controllerAddress": "00 00 01",
+    "deviceAddress": "00 00 3B",
+    "sessionId": 0,
+    "configVersion": 1
+  },
+  "inputs": [
+    "systemId",
+    "endpointId",
+    "remote"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "START",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {}
+    },
+    {
+      "id": "configure",
+      "type": "SEND_AND_WAIT",
+      "position": {
+        "x": 280,
+        "y": 0
+      },
+      "data": {
+        "label": "configure",
+        "code": 33,
+        "values": {
+          "srcAddr": "${controllerAddress}",
+          "dstAddr": "${deviceAddress}",
+          "sessionId": "${sessionId}",
+          "body": {
+            "configMode": 1,
+            "operation": 1,
+            "itemSize": 10,
+            "targetDeviceAddr": 0,
+            "configVersion": "${configVersion}",
+            "items": [
+              {
+                "deviceAddr": 59,
+                "deviceType": 1,
+                "deviceNumericId": 59,
+                "initialParameter": 1
+              },
+              {
+                "deviceAddr": 60,
+                "deviceType": 1,
+                "deviceNumericId": 60,
+                "initialParameter": 1
+              },
+              {
+                "deviceAddr": 61,
+                "deviceType": 1,
+                "deviceNumericId": 61,
+                "initialParameter": 1
+              },
+              {
+                "deviceAddr": 62,
+                "deviceType": 1,
+                "deviceNumericId": 62,
+                "initialParameter": 1
+              },
+              {
+                "deviceAddr": 63,
+                "deviceType": 1,
+                "deviceNumericId": 63,
+                "initialParameter": 1
+              }
+            ]
+          }
+        },
+        "expectedCodes": [
+          34
+        ],
+        "timeoutMs": 2000,
+        "retries": 2,
+        "retryIntervalMs": 200
+      }
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "position": {
+        "x": 560,
+        "y": 0
+      },
+      "data": {}
+    },
+    {
+      "id": "error",
+      "type": "ERROR",
+      "position": {
+        "x": 840,
+        "y": 0
+      },
+      "data": {
+        "message": "配置未确认；请查看逐条结果及超时记录"
+      }
+    },
+    {
+      "id": "check-results",
+      "type": "CONDITION",
+      "position": {
+        "x": 560,
+        "y": 150
+      },
+      "data": {
+        "expression": "response.body.results[0].result == 170 && response.body.results[1].result == 170 && response.body.results[2].result == 170 && response.body.results[3].result == 170 && response.body.results[4].result == 170"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "configure",
+      "target": "error",
+      "label": "timeout"
+    },
+    {
+      "source": "start",
+      "target": "configure"
+    },
+    {
+      "source": "configure",
+      "target": "check-results",
+      "label": "matched"
+    },
+    {
+      "source": "check-results",
+      "target": "end",
+      "label": "true"
+    },
+    {
+      "source": "check-results",
+      "target": "error",
+      "label": "false"
+    }
+  ]
+}

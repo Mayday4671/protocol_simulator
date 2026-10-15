@@ -1,0 +1,14 @@
+import {useEffect,useRef,useState,type CSSProperties,type ReactNode} from 'react';
+type Side='left'|'right';
+interface Pane{initial:number;min:number;max:number}
+interface Props{projectId:string;page:string;left?:Pane;right?:Pane;className?:string;children:ReactNode}
+export function ResizableColumns({projectId,page,left,right,className='',children}:Props){
+ const key='musp-layout:'+JSON.stringify([projectId,page]);
+ const settings={left,right};const root=useRef<HTMLDivElement>(null);
+ const [sizes,setSizes]=useState<Record<Side,number>>(()=>{let stored:Partial<Record<Side,number>>={};try{stored=JSON.parse(localStorage.getItem(key)||'{}')}catch{/* Use defaults if old layout settings are corrupt. */}return {left:left?Math.max(left.min,Math.min(left.max,stored.left??left.initial)):0,right:right?Math.max(right.min,Math.min(right.max,stored.right??right.initial)):0}});
+ const [active,setActive]=useState<Side>();const drag=useRef<{side:Side;x:number;width:number}|undefined>(undefined);
+ useEffect(()=>localStorage.setItem(key,JSON.stringify(sizes)),[key,sizes]);
+ function resize(side:Side,value:number){const pane=settings[side];if(!pane)return;const available=root.current?.clientWidth||Infinity;const other=sizes[side==='left'?'right':'left'];const maximum=Math.max(pane.min,Math.min(pane.max,available-other-350));setSizes(current=>({...current,[side]:Math.round(Math.max(pane.min,Math.min(maximum,value)))}))}
+ const style={'--pane-left':sizes.left+'px','--pane-right':sizes.right+'px'} as CSSProperties;
+ return <div ref={root} style={style} className={'resizable-columns '+className+(active?' resizing':'')}>{children}{(['left','right'] as const).filter(side=>settings[side]).map(side=>{const pane=settings[side]!;return <div key={side} role="separator" aria-orientation="vertical" aria-label={'调整'+(side==='left'?'左侧':'右侧')+'分栏宽度'} aria-valuemin={pane.min} aria-valuemax={pane.max} aria-valuenow={sizes[side]} tabIndex={0} title="拖动调整分栏；方向键微调，双击复位" className={'resize-handle '+side+(active===side?' active':'')} style={side==='left'?{left:sizes.left+3}:{right:sizes.right+3}} onPointerDown={event=>{event.preventDefault();event.currentTarget.setPointerCapture?.(event.pointerId);drag.current={side,x:event.clientX,width:sizes[side]};setActive(side)}} onPointerMove={event=>{const start=drag.current;if(start?.side===side)resize(side,start.width+(event.clientX-start.x)*(side==='left'?1:-1))}} onPointerUp={event=>{event.currentTarget.releasePointerCapture?.(event.pointerId);drag.current=undefined;setActive(undefined)}} onPointerCancel={()=>{drag.current=undefined;setActive(undefined)}} onDoubleClick={()=>resize(side,pane.initial)} onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();const delta=(event.shiftKey?50:10)*(event.key==='ArrowRight'?1:-1)*(side==='left'?1:-1);resize(side,sizes[side]+delta)}}}/>})}</div>;
+}
