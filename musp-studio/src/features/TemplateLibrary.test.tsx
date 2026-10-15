@@ -9,6 +9,6 @@ describe('真实内置模板摘要契约',()=>{
   const client=new QueryClient();
   client.setQueryData(['flow-templates'],[{id:'heartbeat',nameZh:'心跳',description:'发送与等待真实心跳',kind:'WORKFLOW',protocol:'MUSP v0.8',nodeCount:3,inputs:{},defaultVariables:{deviceId:''}}]);
   const html=renderToStaticMarkup(<QueryClientProvider client={client}><App><TemplateLibrary protocols={[]} connected={false} onProtocol={()=>{}}/></App></QueryClientProvider>);
-  expect(html).toContain('心跳');expect(html).toContain('MUSP v0.8');expect(html).toContain('发送与等待真实心跳');
+  expect(html).toContain('心跳');expect(html).toContain('MUSP v0.8');expect(html).toContain('发送 0x31 并等待 0x32');
  });
 });

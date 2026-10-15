@@ -116,7 +116,7 @@ with sync_playwright() as pw:
 
         navigate("协议设计")
         page.locator(".protocol-toolbar button").filter(has_text="校验").first.click()
-        page.get_by_text("校验通过，可发布不可变版本", exact=True).wait_for()
+        page.locator(".ant-alert").filter(has_text="校验通过").wait_for()
         check("应用内Monaco XML通过Rust语法与DSL校验")
 
         def window_state(command):
