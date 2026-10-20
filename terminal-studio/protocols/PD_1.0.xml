@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<simterm-import>
+  <!-- ============ 全局共享字典 ============ -->
+  <dict key="pd_signal" name="信令类型" byte-len="1">
+    <item value="01" label="开机注册"/>
+    <item value="02" label="注册许可"/>
+    <item value="03" label="注销"/>
+    <item value="04" label="注销应答"/>
+    <item value="05" label="心跳保活"/>
+    <item value="06" label="心跳应答"/>
+    <item value="11" label="参数设置"/>
+    <item value="12" label="参数设置应答"/>
+    <item value="13" label="参数查询"/>
+    <item value="14" label="参数查询响应"/>
+    <item value="21" label="状态上报"/>
+    <item value="22" label="上报应答"/>
+    <item value="23" label="告警上报"/>
+    <item value="24" label="告警应答"/>
+    <item value="25" label="设备清单上报"/>
+    <item value="26" label="清单应答"/>
+  </dict>
+  <dict key="pd_dev" name="配电设备档案" byte-len="4">
+    <item value="00000000" label="服务平台"/>
+    <item value="00000001" label="一号配电终端"/>
+    <item value="00000002" label="二号配电终端"/>
+    <item value="00000003" label="三号配电终端"/>
+  </dict>
+  <dict key="pd_result" name="通用结果" byte-len="1">
+    <item value="00" label="成功"/>
+    <item value="01" label="失败"/>
+    <item value="02" label="令牌无效"/>
+    <item value="03" label="未注册"/>
+  </dict>
+  <dict key="pd_model" name="设备型号" byte-len="1">
+    <item value="01" label="标准DTU"/>
+    <item value="02" label="增强网关"/>
+    <item value="03" label="微型采集终端"/>
+  </dict>
+  <dict key="pd_net_mode" name="组网方式" byte-len="1">
+    <item value="00" label="以太网"/>
+    <item value="01" label="蜂窝网络"/>
+    <item value="02" label="专线接入"/>
+  </dict>
+  <dict key="pd_run_status" name="运行状态" byte-len="1">
+    <item value="00" label="正常"/>
+    <item value="01" label="告警"/>
+    <item value="02" label="检修"/>
+  </dict>
+  <dict key="pd_alarm_type" name="告警类型" byte-len="1">
+    <item value="01" label="过压"/>
+    <item value="02" label="欠压"/>
+    <item value="03" label="过流"/>
+    <item value="04" label="过温"/>
+  </dict>
+  <dict key="pd_alarm_level" name="告警级别" byte-len="1">
+    <item value="01" label="紧急"/>
+    <item value="02" label="重要"/>
+    <item value="03" label="次要"/>
+  </dict>
+  <dict key="pd_param_id" name="参数编号" byte-len="1">
+    <item value="01" label="采集周期"/>
+    <item value="02" label="告警阈值"/>
+    <item value="03" label="心跳间隔"/>
+  </dict>
+
+  <!-- ============ 智能配电接入协议 ============
+       公共头 16B = 版本1B + 信令类型1B + 源地址4B + 目标地址4B + 流水号2B + 认证令牌2B + 报文长度2B
+       认证令牌: 开机注册时全 0; 注册许可从头内令牌位捕获 2B 令牌存入设备档案(按目标地址分桶),
+       此后本终端所有帧头 {session} 自动携带;
+       信令类型码在公共头, 各协议经 hdr_ref 覆盖自己的码值, 识别免手写断言 -->
+  <system name="智能配电接入协议" description="配电终端全流程: 开机注册(平台从头内分配2B令牌) → 令牌认证心跳保活 → 参数设置/查询 → 状态/告警上报 → 多终端清单上报 → 注销">
+    <group name="接入管理">
+      <header enabled="true">
+        <field name="版本号" len="1" enc="hex" value="21"/>
+        <field name="信令类型" len="1" enc="hex" value="01" dict="pd_signal" role="type_code"/>
+        <field name="源地址" len="4" enc="hex" value="00000001" dict="pd_dev" role="src_id"/>
+        <field name="目标地址" len="4" enc="hex" value="00000000" dict="pd_dev" role="dst_id"/>
+        <field name="流水号" len="2" enc="hex" value="{seq}" role="correlation"/>
+        <field name="认证令牌" len="2" enc="hex" value="{session}" role="session"/>
+        <field name="报文长度" len="2" enc="hex" value="{tlen}"/>
+      </header>
+      <protocol id="pd_reg" name="开机注册" type="Request" description="上电第一步: 令牌位全 0, 平台校验设备合法性; 设备型号/组网方式取自设备档案, 可先在设备管理中配置多台">
+        <field name="信令类型" len="1" enc="hex" value="01" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="设备型号" len="1" enc="hex" value="01" dict="pd_model" profile-key="model"/>
+        <field name="组网方式" len="1" enc="hex" value="00" dict="pd_net_mode" profile-key="net_mode"/>
+        <field name="注册时间" len="4" enc="hex" value="{timestamp}"/>
+      </protocol>
+      <protocol id="pd_reg_grant" name="注册许可" type="Response" description="平台下发: 从公共头令牌位分配 2B 认证令牌(收到自动存入本终端设备档案与捕获桶, 按目标地址归属终端), 后续所有帧头自动携带; 注册完成自动开始定时心跳保活; 流水号仅回显不参与应答关联, 避免被误判为配置应答" auto-periodic="pd_heartbeat" auto-periodic-interval="30000">
+        <field name="信令类型" len="1" enc="hex" value="02" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="流水号" len="2" enc="hex" value="{req:流水号}" header-ref="流水号"/>
+        <field name="认证令牌" len="2" enc="hex" value="{random}" role="session" header-ref="认证令牌"/>
+        <field name="注册结果" len="1" enc="hex" value="00" dict="pd_result"/>
+        <field name="令牌有效期" len="4" enc="hex" value="0000 0E10"/>
+      </protocol>
+      <protocol id="pd_logout" name="注销" type="Request" description="终端下线: 平台吊销令牌, 头内仍携带当前令牌供核销">
+        <field name="信令类型" len="1" enc="hex" value="03" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="注销原因" len="1" enc="hex" value="01"/>
+      </protocol>
+      <protocol id="pd_logout_resp" name="注销应答" type="Response" description="平台确认吊销">
+        <field name="信令类型" len="1" enc="hex" value="04" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="流水号" len="2" enc="hex" value="{req:流水号}" role="correlation" header-ref="流水号"/>
+        <field name="注销结果" len="1" enc="hex" value="00" dict="pd_result" role="result"/>
+      </protocol>
+      <protocol id="pd_heartbeat" name="心跳保活" type="Heartbeat" description="注册许可收到后自动定时发送(30秒); 令牌认证失败时平台回「令牌无效」">
+        <field name="信令类型" len="1" enc="hex" value="05" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="运行状态" len="1" enc="hex" value="00" dict="pd_run_status" profile-key="run_status"/>
+      </protocol>
+      <protocol id="pd_heartbeat_resp" name="心跳应答" type="Response" description="平台保活确认; 令牌不符回 02 令牌无效">
+        <field name="信令类型" len="1" enc="hex" value="06" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="保活结果" len="1" enc="hex" value="00" dict="pd_result" role="result"/>
+      </protocol>
+    </group>
+    <group name="参数配置">
+      <header enabled="true">
+        <field name="版本号" len="1" enc="hex" value="21"/>
+        <field name="信令类型" len="1" enc="hex" value="11" dict="pd_signal" role="type_code"/>
+        <field name="源地址" len="4" enc="hex" value="00000001" dict="pd_dev" role="src_id"/>
+        <field name="目标地址" len="4" enc="hex" value="00000000" dict="pd_dev" role="dst_id"/>
+        <field name="流水号" len="2" enc="hex" value="{seq}" role="correlation"/>
+        <field name="认证令牌" len="2" enc="hex" value="{session}" role="session"/>
+        <field name="报文长度" len="2" enc="hex" value="{tlen}"/>
+      </header>
+      <protocol id="pd_param_set" name="参数设置" type="Request" description="平台向终端下发运行参数(此处由终端主动上报参数修改); 采集周期/告警阈值取自设备档案">
+        <field name="信令类型" len="1" enc="hex" value="11" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="采集周期" len="2" enc="hex" value="00 3C" profile-key="sample_cycle"/>
+        <field name="告警阈值" len="2" enc="hex" value="01 90" profile-key="alarm_th"/>
+      </protocol>
+      <protocol id="pd_param_set_resp" name="参数设置应答" type="Response" description="平台确认参数生效, 流水号回显">
+        <field name="信令类型" len="1" enc="hex" value="12" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="流水号" len="2" enc="hex" value="{req:流水号}" role="correlation" header-ref="流水号"/>
+        <field name="设置结果" len="1" enc="hex" value="00" dict="pd_result" role="result"/>
+      </protocol>
+      <protocol id="pd_param_query" name="参数查询" type="Request" description="查询终端运行参数">
+        <field name="信令类型" len="1" enc="hex" value="13" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="查询个数" len="1" enc="hex" value="03"/>
+      </protocol>
+      <protocol id="pd_param_query_resp" name="参数查询响应" type="Response" description="平台回参数列表: 个数 × (参数编号 + 参数值 2B), 列表之后跟校验和尾随字段">
+        <field name="信令类型" len="1" enc="hex" value="14" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="参数个数" len="1" enc="hex" value="03" role="device_count"/>
+        <field name="参数列表" len="3" enc="hex" value="{vlen}" role="device_list">
+          <unit name="参数编号" len="1" enc="hex" dict="pd_param_id"/>
+          <unit name="参数值" len="2" enc="hex"/>
+        </field>
+        <field name="校验和" len="2" enc="hex" value="55 AA"/>
+      </protocol>
+    </group>
+    <group name="数据上报">
+      <header enabled="true">
+        <field name="版本号" len="1" enc="hex" value="21"/>
+        <field name="信令类型" len="1" enc="hex" value="21" dict="pd_signal" role="type_code"/>
+        <field name="源地址" len="4" enc="hex" value="00000001" dict="pd_dev" role="src_id"/>
+        <field name="目标地址" len="4" enc="hex" value="00000000" dict="pd_dev" role="dst_id"/>
+        <field name="流水号" len="2" enc="hex" value="{seq}" role="correlation"/>
+        <field name="认证令牌" len="2" enc="hex" value="{session}" role="session"/>
+        <field name="报文长度" len="2" enc="hex" value="{tlen}"/>
+      </header>
+      <protocol id="pd_status_report" name="状态上报" type="Request" description="周期上报电压/电流/温度/运行状态, 取自设备档案">
+        <field name="信令类型" len="1" enc="hex" value="21" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="电压" len="2" enc="hex" value="09 C4" profile-key="voltage"/>
+        <field name="电流" len="2" enc="hex" value="00 64" profile-key="current"/>
+        <field name="温度" len="1" enc="hex" value="19" profile-key="temp"/>
+        <field name="运行状态" len="1" enc="hex" value="00" dict="pd_run_status" profile-key="run_status"/>
+      </protocol>
+      <protocol id="pd_report_ack" name="上报应答" type="Response" description="平台确认状态上报">
+        <field name="信令类型" len="1" enc="hex" value="22" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="流水号" len="2" enc="hex" value="{req:流水号}" role="correlation" header-ref="流水号"/>
+        <field name="应答结果" len="1" enc="hex" value="00" dict="pd_result" role="result"/>
+      </protocol>
+      <protocol id="pd_alarm_report" name="告警上报" type="Request" description="越限告警: 类型/级别字典选择, 告警值为触发值">
+        <field name="信令类型" len="1" enc="hex" value="23" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="告警类型" len="1" enc="hex" value="01" dict="pd_alarm_type" profile-key="last_alarm"/>
+        <field name="告警级别" len="1" enc="hex" value="02" dict="pd_alarm_level"/>
+        <field name="告警值" len="2" enc="hex" value="0B B8"/>
+      </protocol>
+      <protocol id="pd_alarm_ack" name="告警应答" type="Response" description="平台确认告警收到">
+        <field name="信令类型" len="1" enc="hex" value="24" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="流水号" len="2" enc="hex" value="{req:流水号}" role="correlation" header-ref="流水号"/>
+        <field name="应答结果" len="1" enc="hex" value="00" dict="pd_result" role="result"/>
+      </protocol>
+      <protocol id="pd_dev_list_report" name="设备清单上报" type="Request" description="多终端清单: 终端个数 × (终端地址 4B + 运行状态 1B), 之后跟校验和; 条目在表单按数量联动逐台填写">
+        <field name="信令类型" len="1" enc="hex" value="25" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="终端个数" len="1" enc="hex" value="02" role="device_count"/>
+        <field name="终端列表" len="5" enc="hex" value="{vlen}" role="device_list">
+          <unit name="终端地址" len="4" enc="hex" dict="pd_dev" role="device_sn"/>
+          <unit name="运行状态" len="1" enc="hex" dict="pd_run_status"/>
+        </field>
+        <field name="校验和" len="2" enc="hex" value="55 AA"/>
+      </protocol>
+      <protocol id="pd_list_ack" name="清单应答" type="Response" description="平台确认清单收到">
+        <field name="信令类型" len="1" enc="hex" value="26" dict="pd_signal" role="type_code" header-ref="信令类型"/>
+        <field name="流水号" len="2" enc="hex" value="{req:流水号}" role="correlation" header-ref="流水号"/>
+        <field name="应答结果" len="1" enc="hex" value="00" dict="pd_result" role="result"/>
+      </protocol>
+    </group>
+    <!-- 业务流程示例: 设备接入全流程(逐台注册→令牌心跳→参数设置→状态上报→注销) -->
+    <flow name="设备接入全流程" description="逐台开机注册领取令牌, 随后单台走完 心跳→参数设置→状态上报→注销 全链; 任一步失败/超时即结束">
+      <step id="reg" name="逐台开机注册" protocol="pd_reg" terminal-mode="each" expect="pd_reg_grant" timeout-ms="5000" on-success="beat"/>
+      <step id="beat" name="心跳保活" protocol="pd_heartbeat" expect="pd_heartbeat_resp" timeout-ms="5000" on-success="param"/>
+      <step id="param" name="参数设置" protocol="pd_param_set" expect="pd_param_set_resp" timeout-ms="5000" on-success="report"/>
+      <step id="report" name="状态上报" protocol="pd_status_report" expect="pd_report_ack" timeout-ms="5000" on-success="logout"/>
+      <step id="logout" name="注销" protocol="pd_logout" expect="pd_logout_resp" timeout-ms="5000"/>
+    </flow>
+  </system>
+</simterm-import>

@@ -1,4 +1,0 @@
-const labels:Record<string,string>={OFFLINE:'离线 · 00',ONLINE:'在线 · 01',COMMUNICATING:'通信 · 02',RUNNING:'运行中',WAITING:'等待响应',PAUSED:'已暂停',COMPLETED:'已完成',SUCCESS:'完成',FAILED:'失败',CANCELLED:'已停止',INTERRUPTED:'已中断',ACTIVE:'通信中',UNKNOWN:'未知 · 待核实',RELEASED:'已确认回收',PUBLISHED:'已发布',DRAFT:'草稿',REQUESTED:'已请求',PAGING:'呼叫中',PERMITTED:'已许可',ALLOCATING:'分配资源中',READY:'已就绪',ENDING:'结束中',RELEASING:'释放中',ENDED:'已结束',CLEANUP_PENDING:'待清理',RESERVED:'已预留',CONFIGURING:'配置中',APPLIED:'已应用',RETRY_SCHEDULED:'等待重试',MATCHED:'已匹配',TIMED_OUT:'已超时',SEND_FAILED:'发送失败'};
-export function statusLabel(status?:string):string{return labels[status||'']||status||'—'}
-export type RunControl='pause'|'resume'|'step'|'stop';
-export function runControls(status:string):RunControl[]{return status==='PAUSED'?['resume','step','stop']:['RUNNING','WAITING'].includes(status)?['pause','stop']:[]}

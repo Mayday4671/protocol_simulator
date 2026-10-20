@@ -1,0 +1,6 @@
+# 本机 PATH 中存在旧版 MinGW (GCC 8.1) 会导致 GNU ld 链接产物入口点错误
+# (STATUS_ENTRYPOINT_NOT_FOUND / export ordinal too large)。
+# 因此强制使用 rustup 自带的 rust-lld 链接器与 self-contained CRT。
+[target.x86_64-pc-windows-gnu]
+linker = "rust-lld"
+rustflags = ["-C", "link-self-contained=yes"]

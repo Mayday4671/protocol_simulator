@@ -1,0 +1,733 @@
+<?xml version='1.0' encoding='utf-8'?>
+<simterm-import>
+  <system name="MUSP v0.8 无人机联调（基座试录）" description="34条信令；配置请求/响应支持动态条目与长度、CRC计算，其余信令保留静态样例。尚不支持完整MUSP运行语义。">
+    <group name="01 注册与认证">
+      <header enabled="true">
+        <field name="同步头" len="2" enc="hex" value="AA55" section="header" />
+        <field name="协议版本" len="1" enc="hex" value="01" section="header" />
+        <field name="头部长度" len="1" enc="hex" value="17" section="header" />
+        <field name="报文总长度" len="2" enc="hex" value="{tlen}" section="header" />
+        <field name="信令码" len="1" enc="hex" value="01" section="header" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" section="header" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" section="header" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" section="header" />
+        <field name="头部保留字节" len="1" enc="hex" value="00" section="header" />
+        <field name="事务序号" len="4" enc="hex" value="00000065" section="header" />
+        <field name="会话ID" len="2" enc="hex" value="1234" section="header" />
+        <field name="业务体长度" len="2" enc="hex" value="0000" section="header" />
+      </header>
+      <protocol id="musp_register_req" name="0x01 开机注册请求" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="01" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="会话ID" len="2" enc="hex" value="0000" header-ref="会话ID" />
+        <field name="设备类型" len="1" enc="hex" value="01" />
+        <field name="设备业务编号" len="4" enc="hex" value="0000003B" />
+        <field name="启动原因" len="1" enc="hex" value="01" dict="musp_bootReason_1_7_0" />
+        <field name="能力标志" len="2" enc="hex" value="0003" />
+        <field name="配置版本" len="2" enc="hex" value="0001" />
+        <field name="业务体长度" len="2" enc="hex" value="000a" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="ACDC" section="trailer" />
+      </protocol>
+      <protocol id="musp_register_license" name="0x02 注册许可" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="02" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_2_4_1" />
+        <field name="许可有效时间" len="4" enc="hex" value="00000E10" />
+        <field name="认证模式" len="1" enc="hex" value="00" dict="musp_authMode_3_6_1" />
+        <field name="保留字段" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="0007" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="83AD" section="trailer" />
+      </protocol>
+      <protocol id="musp_register_confirm" name="0x03 注册确认" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="03" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="设备业务编号" len="4" enc="hex" value="0000003B" />
+        <field name="确认结果" len="1" enc="hex" value="00" dict="musp_confirmResult_4_5_2" />
+        <field name="业务体长度" len="2" enc="hex" value="0005" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="0EB1" section="trailer" />
+      </protocol>
+      <protocol id="musp_register_complete" name="0x04 注册完成" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="04" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_5_4_3" />
+        <field name="已确认能力标志" len="2" enc="hex" value="0003" />
+        <field name="业务体长度" len="2" enc="hex" value="0003" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="D3E7" section="trailer" />
+      </protocol>
+      <protocol id="musp_auth_issue" name="0x11 认证信息下发" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="11" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="Token 有效时间" len="4" enc="hex" value="00000E10" />
+        <field name="Token 长度" len="1" enc="hex" value="04" />
+        <field name="Token 数据" len="4" enc="hex" value="DEADBEEF" />
+        <field name="业务体长度" len="2" enc="hex" value="0009" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="F7D7" section="trailer" />
+      </protocol>
+      <protocol id="musp_auth_ack" name="0x12 认证接收确认" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="12" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_6_4_5" />
+        <field name="业务体长度" len="2" enc="hex" value="0001" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="42E5" section="trailer" />
+      </protocol>
+    </group>
+    <group name="02 配置与心跳">
+      <header enabled="true">
+        <field name="同步头" len="2" enc="hex" value="AA55" section="header" />
+        <field name="协议版本" len="1" enc="hex" value="01" section="header" />
+        <field name="头部长度" len="1" enc="hex" value="17" section="header" />
+        <field name="报文总长度" len="2" enc="hex" value="{tlen}" section="header" />
+        <field name="信令码" len="1" enc="hex" value="01" section="header" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" section="header" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" section="header" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" section="header" />
+        <field name="头部保留字节" len="1" enc="hex" value="00" section="header" />
+        <field name="事务序号" len="4" enc="hex" value="00000065" section="header" />
+        <field name="会话ID" len="2" enc="hex" value="1234" section="header" />
+        <field name="业务体长度" len="2" enc="hex" value="0000" section="header" />
+      </header>
+      <protocol id="musp_config_set" name="0x21 设备配置请求" type="Request" description="配置条目数量驱动动态数组；业务体长度、报文总长度与CRC自动计算。模式01设备条目，模式02通道参数。配置结果AA表示逐项成功。">
+        <field name="信令码" len="1" enc="hex" value="21" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="01" header-ref="公共头标志位" />
+        <field name="头部长度" len="1" enc="hex" value="1D" header-ref="头部长度" />
+        <field name="认证类型" len="1" enc="hex" value="A1" section="header_extension" section-name="认证扩展" />
+        <field name="认证长度" len="1" enc="hex" value="04" section="header_extension" section-name="认证扩展" />
+        <field name="认证信息（测试值）" len="4" enc="hex" value="DEADBEEF" section="header_extension" section-name="认证扩展" />
+        <field name="通用段·配置控制标志" len="1" enc="hex" value="81" />
+        <field name="通用段·批次编号（待确认）" len="2" enc="hex" value="0001" />
+        <field name="通用段·分段编号（待确认）" len="2" enc="hex" value="0001" />
+        <field name="通用段·保留字节" len="3" enc="hex" value="000000" />
+        <field name="配置模式" len="1" enc="hex" value="02" dict="musp_configMode_7_12_6" />
+        <field name="操作类型" len="1" enc="hex" value="01" dict="musp_operation_8_13_6" />
+        <field name="配置条目数" len="1" enc="hex" value="05" role="device_count" />
+        <field name="单条长度" len="1" enc="hex" value="0a" />
+        <field name="目标设备地址（设备模式）" len="3" enc="hex" value="000000" when-field="配置模式" when-value="01" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003b" when-field="配置模式" when-value="02" />
+        <field name="配置版本" len="2" enc="hex" value="0001" />
+        <field name="保留字节" len="1" enc="hex" value="00" />
+        <field name="设备配置条目" len="10" enc="hex" role="device_list" value="00003B010000003B000100003C010000003C000100003D010000003D000100003E010000003E000100003F010000003F0001" when-field="配置模式" when-value="01">
+          <unit name="设备地址" len="3" enc="hex" value="000000" />
+          <unit name="设备类型" len="1" enc="hex" value="01" />
+          <unit name="设备业务编号" len="4" enc="hex" value="0000003B" />
+          <unit name="初始参数" len="2" enc="hex" value="0000" />
+        </field>
+        <field name="通道配置条目" len="10" enc="hex" role="device_list" value="0101000f4240000a01000201000f42a4000b01000301000f4308000c01000401000f436c000d01000501000f43d0000e0100" when-field="配置模式" when-value="02">
+          <unit name="通道编号" len="1" enc="hex" value="01" />
+          <unit name="配置类型" len="1" enc="hex" value="01" />
+          <unit name="中心频率" len="4" enc="hex" value="000f4240" />
+          <unit name="功率级别" len="2" enc="hex" value="000a" />
+          <unit name="启用" len="1" enc="hex" value="01" dict="musp_enabled_9_23_6" />
+          <unit name="保留" len="1" enc="hex" value="00" />
+        </field>
+        <field name="业务体长度" len="2" enc="hex" value="{byte_length:通用段·配置控制标志:CRC16}" header-ref="业务体长度" />
+        <field name="CRC16" len="2" enc="hex" value="{crc16_ccitt_false}" section="trailer" />
+      </protocol>
+      <protocol id="musp_config_result" name="0x22 设备配置响应" type="Response" description="配置条目数量驱动动态数组；业务体长度、报文总长度与CRC自动计算。模式01设备条目，模式02通道参数。配置结果AA表示逐项成功。">
+        <field name="信令码" len="1" enc="hex" value="22" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="配置条目数" len="1" enc="hex" value="05" role="device_count" />
+        <field name="配置结果条目" len="1" enc="hex" role="device_list" value="aaaaaaaaaa">
+          <unit name="条目结果" len="1" enc="hex" value="aa" dict="musp_result_14_5_7" />
+        </field>
+        <field name="业务体长度" len="2" enc="hex" value="{byte_length:配置条目数:CRC16}" header-ref="业务体长度" />
+        <field name="CRC16" len="2" enc="hex" value="{crc16_ccitt_false}" section="trailer" />
+      </protocol>
+      <protocol id="musp_heartbeat_req" name="0x31 心跳请求" type="Heartbeat" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="31" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="开机运行时间" len="4" enc="hex" value="0000003C" />
+        <field name="状态标志" len="2" enc="hex" value="0000" />
+        <field name="业务体长度" len="2" enc="hex" value="0006" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="A053" section="trailer" />
+      </protocol>
+      <protocol id="musp_heartbeat_rsp" name="0x32 心跳响应" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="32" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_19_4_9" />
+        <field name="服务端时间秒值" len="4" enc="hex" value="00000000" />
+        <field name="业务体长度" len="2" enc="hex" value="0005" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="7800" section="trailer" />
+      </protocol>
+    </group>
+    <group name="03 状态与业务">
+      <header enabled="true">
+        <field name="同步头" len="2" enc="hex" value="AA55" section="header" />
+        <field name="协议版本" len="1" enc="hex" value="01" section="header" />
+        <field name="头部长度" len="1" enc="hex" value="17" section="header" />
+        <field name="报文总长度" len="2" enc="hex" value="{tlen}" section="header" />
+        <field name="信令码" len="1" enc="hex" value="01" section="header" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" section="header" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" section="header" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" section="header" />
+        <field name="头部保留字节" len="1" enc="hex" value="00" section="header" />
+        <field name="事务序号" len="4" enc="hex" value="00000065" section="header" />
+        <field name="会话ID" len="2" enc="hex" value="1234" section="header" />
+        <field name="业务体长度" len="2" enc="hex" value="0000" section="header" />
+      </header>
+      <protocol id="musp_status_report" name="0x41 状态上报" type="Event" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="41" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="设备状态" len="1" enc="hex" value="01" dict="musp_deviceState_20_4_10" />
+        <field name="通道数量" len="1" enc="hex" value="00" role="device_count" />
+        <field name="电压毫伏值" len="2" enc="hex" value="0000" />
+        <field name="温度百分之一摄氏度" len="2" enc="hex" value="0000" />
+        <field name="通道状态" len="6" enc="hex" value="{vlen}" role="device_list">
+          <unit name="通道编号" len="1" enc="hex" value="00" />
+          <unit name="电平" len="2" enc="hex" value="0000" />
+          <unit name="频偏" len="2" enc="hex" value="0000" />
+          <unit name="启用标记" len="1" enc="hex" value="00" dict="musp_enabled_21_3_10" />
+        </field>
+        <field name="业务体长度" len="2" enc="hex" value="0006" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="C475" section="trailer" />
+      </protocol>
+      <protocol id="musp_business_cmd" name="0x51 业务命令" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="51" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="命令类型" len="1" enc="hex" value="00" />
+        <field name="参数长度" len="2" enc="hex" value="0000" />
+        <field name="参数内容" len="1" enc="hex" value="{vlen}" />
+        <field name="业务体长度" len="2" enc="hex" value="0003" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="5C03" section="trailer" />
+      </protocol>
+      <protocol id="musp_business_result" name="0x52 业务结果" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="52" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_22_4_12" />
+        <field name="业务错误码" len="2" enc="hex" value="0000" />
+        <field name="业务体长度" len="2" enc="hex" value="0003" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="4A56" section="trailer" />
+      </protocol>
+    </group>
+    <group name="04 无人机呼叫">
+      <header enabled="true">
+        <field name="同步头" len="2" enc="hex" value="AA55" section="header" />
+        <field name="协议版本" len="1" enc="hex" value="01" section="header" />
+        <field name="头部长度" len="1" enc="hex" value="17" section="header" />
+        <field name="报文总长度" len="2" enc="hex" value="{tlen}" section="header" />
+        <field name="信令码" len="1" enc="hex" value="01" section="header" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" section="header" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" section="header" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" section="header" />
+        <field name="头部保留字节" len="1" enc="hex" value="00" section="header" />
+        <field name="事务序号" len="4" enc="hex" value="00000065" section="header" />
+        <field name="会话ID" len="2" enc="hex" value="1234" section="header" />
+        <field name="业务体长度" len="2" enc="hex" value="0000" section="header" />
+      </header>
+      <protocol id="musp_video_call_req" name="0x60 视频通话申请" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="60" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="被叫设备地址" len="3" enc="hex" value="000000" />
+        <field name="媒体类型" len="1" enc="hex" value="00" />
+        <field name="申请发送带宽" len="2" enc="hex" value="0000" />
+        <field name="申请接收带宽" len="2" enc="hex" value="0000" />
+        <field name="编码能力" len="2" enc="hex" value="0000" />
+        <field name="业务优先级" len="1" enc="hex" value="00" />
+        <field name="保留字段" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="000c" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="E387" section="trailer" />
+      </protocol>
+      <protocol id="musp_video_call_rsp" name="0x61 视频通话响应" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="61" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_23_4_14" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="媒体类型" len="1" enc="hex" value="00" />
+        <field name="状态" len="1" enc="hex" value="01" dict="musp_callState_24_7_14" />
+        <field name="保留字段" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="0006" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="7D9C" section="trailer" />
+      </protocol>
+      <protocol id="musp_paging_req" name="0x62 寻呼请求" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="62" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="主叫地址" len="3" enc="hex" value="000000" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="媒体类型" len="1" enc="hex" value="00" />
+        <field name="建议发送带宽" len="2" enc="hex" value="0000" />
+        <field name="建议接收带宽" len="2" enc="hex" value="0000" />
+        <field name="应答期限" len="2" enc="hex" value="0000" />
+        <field name="保留字段" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="000d" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="ECBD" section="trailer" />
+      </protocol>
+      <protocol id="musp_paging_rsp" name="0x63 寻呼响应" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="63" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="寻呼结果" len="1" enc="hex" value="00" dict="musp_pagingResult_25_5_16" />
+        <field name="接受的媒体能力" len="1" enc="hex" value="00" />
+        <field name="保留字段" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="0005" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="25F0" section="trailer" />
+      </protocol>
+      <protocol id="musp_call_notify" name="0x64 通话许可通知" type="Event" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="64" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_26_5_17" />
+        <field name="对端地址" len="3" enc="hex" value="000000" />
+        <field name="业务体长度" len="2" enc="hex" value="0006" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="EFC2" section="trailer" />
+      </protocol>
+      <protocol id="musp_voice_call_req" name="0x65 单端语音申请" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="65" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="业务类型" len="1" enc="hex" value="00" />
+        <field name="申请发送带宽" len="2" enc="hex" value="0000" />
+        <field name="申请接收带宽" len="2" enc="hex" value="0000" />
+        <field name="编码类型" len="1" enc="hex" value="00" />
+        <field name="业务优先级" len="1" enc="hex" value="00" />
+        <field name="保留字段" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="0008" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="B219" section="trailer" />
+      </protocol>
+      <protocol id="musp_voice_call_rsp" name="0x66 语音通话响应" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="66" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_27_4_19" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="状态" len="1" enc="hex" value="01" dict="musp_callState_28_6_19" />
+        <field name="保留字段" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="0005" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="846C" section="trailer" />
+      </protocol>
+    </group>
+    <group name="05 资源与通信结束">
+      <header enabled="true">
+        <field name="同步头" len="2" enc="hex" value="AA55" section="header" />
+        <field name="协议版本" len="1" enc="hex" value="01" section="header" />
+        <field name="头部长度" len="1" enc="hex" value="17" section="header" />
+        <field name="报文总长度" len="2" enc="hex" value="{tlen}" section="header" />
+        <field name="信令码" len="1" enc="hex" value="01" section="header" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" section="header" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" section="header" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" section="header" />
+        <field name="头部保留字节" len="1" enc="hex" value="00" section="header" />
+        <field name="事务序号" len="4" enc="hex" value="00000065" section="header" />
+        <field name="会话ID" len="2" enc="hex" value="1234" section="header" />
+        <field name="业务体长度" len="2" enc="hex" value="0000" section="header" />
+      </header>
+      <protocol id="musp_rx_resource_cfg" name="0x70 接收资源配置" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="70" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="接收资源标识" len="2" enc="hex" value="0000" />
+        <field name="分配接收带宽" len="2" enc="hex" value="0000" />
+        <field name="接收中心频率" len="4" enc="hex" value="00000000" />
+        <field name="时隙号" len="2" enc="hex" value="0000" />
+        <field name="资源配置版本" len="2" enc="hex" value="0000" />
+        <field name="生效标志" len="1" enc="hex" value="00" dict="musp_applyFlag_29_10_20" />
+        <field name="业务体长度" len="2" enc="hex" value="000f" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="2746" section="trailer" />
+      </protocol>
+      <protocol id="musp_tx_resource_cfg" name="0x71 发送资源配置" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="71" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="接收资源标识" len="2" enc="hex" value="0000" />
+        <field name="分配发送带宽" len="2" enc="hex" value="0000" />
+        <field name="发送中心频率" len="4" enc="hex" value="00000000" />
+        <field name="时隙号" len="2" enc="hex" value="0000" />
+        <field name="资源配置版本" len="2" enc="hex" value="0000" />
+        <field name="生效标志" len="1" enc="hex" value="00" dict="musp_applyFlag_30_10_21" />
+        <field name="业务体长度" len="2" enc="hex" value="000f" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="7E00" section="trailer" />
+      </protocol>
+      <protocol id="musp_resource_cfg_ack" name="0x72 资源配置确认" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="72" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="接收资源标识" len="2" enc="hex" value="0000" />
+        <field name="配置方向" len="1" enc="hex" value="01" dict="musp_direction_31_6_22" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_32_7_22" />
+        <field name="保留字段" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="0007" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="75FD" section="trailer" />
+      </protocol>
+      <protocol id="musp_call_release_req" name="0x73 通话结束申请" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="73" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="释放原因" len="1" enc="hex" value="00" dict="musp_reasonCode_33_5_23" />
+        <field name="业务体长度" len="2" enc="hex" value="0003" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="2385" section="trailer" />
+      </protocol>
+      <protocol id="musp_call_release_rsp" name="0x74 通话结束受理" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="74" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_34_5_24" />
+        <field name="业务体长度" len="2" enc="hex" value="0003" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="E31C" section="trailer" />
+      </protocol>
+      <protocol id="musp_call_ready_notify" name="0x75 通话就绪通知" type="Event" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="75" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="事件类型" len="1" enc="hex" value="01" dict="musp_eventType_35_5_25" />
+        <field name="启用结果" len="1" enc="hex" value="00" dict="musp_readyCode_36_6_25" />
+        <field name="业务体长度" len="2" enc="hex" value="0004" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="CB44" section="trailer" />
+      </protocol>
+      <protocol id="musp_resource_release_cfg" name="0x76 资源撤销配置" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="76" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="接收资源标识" len="2" enc="hex" value="0000" />
+        <field name="配置方向" len="1" enc="hex" value="01" dict="musp_direction_37_6_26" />
+        <field name="资源配置版本" len="2" enc="hex" value="0000" />
+        <field name="撤销原因" len="1" enc="hex" value="00" dict="musp_releaseReason_38_8_26" />
+        <field name="业务体长度" len="2" enc="hex" value="0008" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="2F8B" section="trailer" />
+      </protocol>
+      <protocol id="musp_resource_release_ack" name="0x77 资源撤销确认" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="77" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="接收资源标识" len="2" enc="hex" value="0000" />
+        <field name="配置方向" len="1" enc="hex" value="01" dict="musp_direction_39_6_27" />
+        <field name="资源配置版本" len="2" enc="hex" value="0000" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_40_8_27" />
+        <field name="业务体长度" len="2" enc="hex" value="0008" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="A442" section="trailer" />
+      </protocol>
+      <protocol id="musp_call_end_notify" name="0x78 通话终止通知" type="Event" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="78" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="释放原因" len="1" enc="hex" value="00" dict="musp_reasonCode_41_5_28" />
+        <field name="发起结束方地址" len="3" enc="hex" value="000000" />
+        <field name="业务停止策略" len="1" enc="hex" value="00" dict="musp_stopMode_42_7_28" />
+        <field name="业务体长度" len="2" enc="hex" value="0007" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="54F7" section="trailer" />
+      </protocol>
+      <protocol id="musp_call_event_ack" name="0x79 通话事件确认" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="79" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="事件类型" len="1" enc="hex" value="01" dict="musp_eventType_43_5_29" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_44_6_29" />
+        <field name="业务体长度" len="2" enc="hex" value="0004" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="2A45" section="trailer" />
+      </protocol>
+      <protocol id="musp_call_end_result" name="0x7A 通话结束结果" type="Event" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="7A" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="呼叫标识" len="2" enc="hex" value="0000" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_45_5_30" />
+        <field name="待核实资源数量" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="0004" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="3E83" section="trailer" />
+      </protocol>
+      <protocol id="musp_call_cancel_req" name="0x7B 取消通话申请" type="Request" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="7B" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="原申请事务序号" len="4" enc="hex" value="00000000" />
+        <field name="取消原因" len="1" enc="hex" value="00" dict="musp_cancelReason_46_5_31" />
+        <field name="业务体长度" len="2" enc="hex" value="0005" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="8BCC" section="trailer" />
+      </protocol>
+      <protocol id="musp_call_cancel_rsp" name="0x7C 取消申请响应" type="Response" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="7C" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="000001" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="00003B" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="02" header-ref="公共头标志位" />
+        <field name="许可结果" len="1" enc="hex" value="00" dict="musp_resultCode_47_4_32" />
+        <field name="保留字段" len="1" enc="hex" value="00" />
+        <field name="业务体长度" len="2" enc="hex" value="0002" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="BA27" section="trailer" />
+      </protocol>
+      <protocol id="musp_device_offline_notify" name="0x7D 设备主动离线" type="Event" description="【试录限制】CRC为静态样例；改任意字段后必须外部重算CRC，变长还需更新业务体/头部长度。未启用自动应答或从响应取值。 默认示例仅用于字段录入、编码和原始收发检查。">
+        <field name="信令码" len="1" enc="hex" value="7D" header-ref="信令码" role="type_code" />
+        <field name="源设备地址" len="3" enc="hex" value="00003B" header-ref="源设备地址" />
+        <field name="目标设备地址" len="3" enc="hex" value="000001" header-ref="目标设备地址" />
+        <field name="公共头标志位" len="1" enc="hex" value="00" header-ref="公共头标志位" />
+        <field name="离线原因" len="1" enc="hex" value="01" dict="musp_offlineReason_48_4_33" />
+        <field name="离线方式" len="1" enc="hex" value="00" dict="musp_offlineMode_49_5_33" />
+        <field name="当前通话数量" len="1" enc="hex" value="00" role="device_count" />
+        <field name="通话标识列表" len="2" enc="hex" value="{vlen}" role="device_list">
+          <unit name="呼叫标识" len="2" enc="hex" value="0000" />
+        </field>
+        <field name="业务体长度" len="2" enc="hex" value="0003" header-ref="业务体长度" />
+        <field name="CRC16（静态样例，修改后须重算）" len="2" enc="hex" value="14A6" section="trailer" />
+      </protocol>
+    </group>
+  </system>
+  <dict key="musp_bootReason_1_7_0" name="启动原因">
+    <item value="01" label="正常上电" />
+  </dict>
+  <dict key="musp_resultCode_2_4_1" name="许可结果">
+    <item value="00" label="允许" />
+    <item value="01" label="拒绝" />
+    <item value="02" label="稍后重试" />
+  </dict>
+  <dict key="musp_authMode_3_6_1" name="认证模式">
+    <item value="00" label="无需认证" />
+    <item value="01" label="单独下发认证信息" />
+  </dict>
+  <dict key="musp_confirmResult_4_5_2" name="确认结果">
+    <item value="00" label="确认许可" />
+  </dict>
+  <dict key="musp_resultCode_5_4_3" name="许可结果">
+    <item value="00" label="完成" />
+  </dict>
+  <dict key="musp_resultCode_6_4_5" name="许可结果">
+    <item value="00" label="接收成功" />
+    <item value="01" label="拒绝" />
+  </dict>
+  <dict key="musp_configMode_7_12_6" name="配置模式">
+    <item value="01" label="多设备配置" />
+    <item value="02" label="单设备多组参数" />
+  </dict>
+  <dict key="musp_operation_8_13_6" name="操作类型">
+    <item value="01" label="全量替换" />
+    <item value="02" label="增量合并" />
+    <item value="03" label="指定删除" />
+  </dict>
+  <dict key="musp_enabled_9_23_6" name="条目1·启用">
+    <item value="00" label="关闭" />
+    <item value="01" label="启用" />
+  </dict>
+  <dict key="musp_enabled_10_29_6" name="条目2·启用">
+    <item value="00" label="关闭" />
+    <item value="01" label="启用" />
+  </dict>
+  <dict key="musp_enabled_11_35_6" name="条目3·启用">
+    <item value="00" label="关闭" />
+    <item value="01" label="启用" />
+  </dict>
+  <dict key="musp_enabled_12_41_6" name="条目4·启用">
+    <item value="00" label="关闭" />
+    <item value="01" label="启用" />
+  </dict>
+  <dict key="musp_enabled_13_47_6" name="条目5·启用">
+    <item value="00" label="关闭" />
+    <item value="01" label="启用" />
+  </dict>
+  <dict key="musp_result_14_5_7" name="条目1·条目结果">
+    <item value="AA" label="配置成功" />
+  </dict>
+  <dict key="musp_result_15_6_7" name="条目2·条目结果">
+    <item value="AA" label="配置成功" />
+  </dict>
+  <dict key="musp_result_16_7_7" name="条目3·条目结果">
+    <item value="AA" label="配置成功" />
+  </dict>
+  <dict key="musp_result_17_8_7" name="条目4·条目结果">
+    <item value="AA" label="配置成功" />
+  </dict>
+  <dict key="musp_result_18_9_7" name="条目5·条目结果">
+    <item value="AA" label="配置成功" />
+  </dict>
+  <dict key="musp_resultCode_19_4_9" name="许可结果">
+    <item value="00" label="成功" />
+  </dict>
+  <dict key="musp_deviceState_20_4_10" name="设备状态">
+    <item value="00" label="离线" />
+    <item value="01" label="在线" />
+    <item value="02" label="通信" />
+  </dict>
+  <dict key="musp_enabled_21_3_10" name="启用标记">
+    <item value="00" label="关闭" />
+    <item value="01" label="启用" />
+  </dict>
+  <dict key="musp_resultCode_22_4_12" name="许可结果">
+    <item value="00" label="成功" />
+  </dict>
+  <dict key="musp_resultCode_23_4_14" name="许可结果">
+    <item value="00" label="许可" />
+    <item value="01" label="拒绝" />
+    <item value="02" label="对端忙" />
+    <item value="03" label="寻呼超时" />
+    <item value="04" label="资源不足" />
+  </dict>
+  <dict key="musp_callState_24_7_14" name="状态">
+    <item value="01" label="已获许可待资源" />
+    <item value="02" label="已终止" />
+  </dict>
+  <dict key="musp_pagingResult_25_5_16" name="寻呼结果">
+    <item value="00" label="接受" />
+    <item value="01" label="拒绝" />
+    <item value="02" label="忙" />
+    <item value="03" label="超时等价业务结果" />
+  </dict>
+  <dict key="musp_resultCode_26_5_17" name="许可结果">
+    <item value="00" label="许可" />
+  </dict>
+  <dict key="musp_resultCode_27_4_19" name="许可结果">
+    <item value="00" label="许可" />
+    <item value="01" label="拒绝" />
+    <item value="02" label="忙" />
+    <item value="04" label="资源不足" />
+  </dict>
+  <dict key="musp_callState_28_6_19" name="状态">
+    <item value="01" label="已获许可待资源" />
+    <item value="02" label="已终止" />
+  </dict>
+  <dict key="musp_applyFlag_29_10_20" name="生效标志">
+    <item value="00" label="预配置" />
+    <item value="01" label="应用" />
+  </dict>
+  <dict key="musp_applyFlag_30_10_21" name="生效标志">
+    <item value="00" label="预配置" />
+    <item value="01" label="应用" />
+  </dict>
+  <dict key="musp_direction_31_6_22" name="配置方向">
+    <item value="01" label="接收 RX" />
+    <item value="02" label="发送 TX" />
+  </dict>
+  <dict key="musp_resultCode_32_7_22" name="许可结果">
+    <item value="00" label="成功" />
+    <item value="01" label="不支持" />
+    <item value="02" label="失败" />
+  </dict>
+  <dict key="musp_reasonCode_33_5_23" name="释放原因">
+    <item value="00" label="正常挂断" />
+    <item value="01" label="设备异常" />
+    <item value="02" label="业务超时" />
+    <item value="03" label="用户主动结束" />
+  </dict>
+  <dict key="musp_resultCode_34_5_24" name="许可结果">
+    <item value="00" label="已受理" />
+    <item value="01" label="callId不存在" />
+    <item value="02" label="拒绝" />
+    <item value="03" label="正在结束（幂等返回）" />
+  </dict>
+  <dict key="musp_eventType_35_5_25" name="事件类型">
+    <item value="01" label="通话启动" />
+  </dict>
+  <dict key="musp_readyCode_36_6_25" name="启用结果">
+    <item value="00" label="就绪" />
+    <item value="01" label="被取消" />
+  </dict>
+  <dict key="musp_direction_37_6_26" name="配置方向">
+    <item value="01" label="接收 RX" />
+    <item value="02" label="发送 TX" />
+  </dict>
+  <dict key="musp_releaseReason_38_8_26" name="撤销原因">
+    <item value="00" label="正常结束" />
+    <item value="01" label="异常" />
+    <item value="02" label="抢占" />
+    <item value="03" label="超时" />
+  </dict>
+  <dict key="musp_direction_39_6_27" name="配置方向">
+    <item value="01" label="接收 RX" />
+    <item value="02" label="发送 TX" />
+  </dict>
+  <dict key="musp_resultCode_40_8_27" name="许可结果">
+    <item value="00" label="已释放" />
+    <item value="01" label="不存在" />
+    <item value="02" label="拒绝" />
+    <item value="03" label="执行失败" />
+  </dict>
+  <dict key="musp_reasonCode_41_5_28" name="释放原因">
+    <item value="00" label="正常" />
+    <item value="01" label="设备异常" />
+    <item value="02" label="超时" />
+    <item value="03" label="系统主动" />
+    <item value="04" label="资源抢占" />
+  </dict>
+  <dict key="musp_stopMode_42_7_28" name="业务停止策略">
+    <item value="00" label="立即停止" />
+    <item value="01" label="允许完成当前业务单元后停止" />
+  </dict>
+  <dict key="musp_eventType_43_5_29" name="事件类型">
+    <item value="01" label="通话启动" />
+    <item value="02" label="通话终止" />
+  </dict>
+  <dict key="musp_resultCode_44_6_29" name="许可结果">
+    <item value="00" label="已执行" />
+    <item value="01" label="拒绝" />
+    <item value="02" label="失败" />
+  </dict>
+  <dict key="musp_resultCode_45_5_30" name="许可结果">
+    <item value="00" label="已完全结束" />
+    <item value="01" label="部分资源未确认" />
+    <item value="02" label="状态未知" />
+    <item value="03" label="回收失败" />
+  </dict>
+  <dict key="musp_cancelReason_46_5_31" name="取消原因">
+    <item value="00" label="用户取消" />
+    <item value="01" label="超时取消" />
+    <item value="02" label="业务变更" />
+  </dict>
+  <dict key="musp_resultCode_47_4_32" name="许可结果">
+    <item value="00" label="已受理" />
+    <item value="01" label="找不到原申请" />
+    <item value="02" label="已完成建立需走0x73" />
+  </dict>
+  <dict key="musp_offlineReason_48_4_33" name="离线原因">
+    <item value="01" label="正常关机" />
+    <item value="02" label="主动退出" />
+    <item value="03" label="计划重启" />
+    <item value="04" label="维护停机" />
+  </dict>
+  <dict key="musp_offlineMode_49_5_33" name="离线方式">
+    <item value="00" label="立即离线" />
+    <item value="01" label="立即离线并请求保留清理窗口" />
+  </dict>
+</simterm-import>

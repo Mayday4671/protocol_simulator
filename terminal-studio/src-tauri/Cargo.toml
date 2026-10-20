@@ -1,0 +1,71 @@
+[package]
+name = "simulated-terminal"
+version = "0.1.0"
+description = "多协议 UDP 终端模拟系统"
+authors = ["you"]
+edition = "2021"
+default-run = "simulated-terminal"
+
+[workspace]
+members = ["core"]
+
+# 本地补丁: webview2-com-sys 在 GNU 工具链下强制动态链接 WebView2Loader.dll,
+# 打补丁改为静态链接, 实现单 exe 分发(详见 vendor/webview2-com-sys/src/lib.rs)
+[patch.crates-io]
+webview2-com-sys = { path = "vendor/webview2-com-sys" }
+
+[lib]
+# 桌面版仅需 rlib; cdylib/staticlib 仅移动端需要,
+# 且在 windows-gnu 工具链下会触发 GNU ld "export ordinal too large" 链接错误
+name = "simulated_terminal_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+simterm-core = { path = "core" }
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+dashmap = "6"
+chrono = "0.4"
+hex = "0.4"
+
+[features]
+# 引擎 E2E 驱动程序: cargo run --features e2e --bin e2e_video (需先起 py 测试服务端)
+e2e = ["tauri/test"]
+
+[[bin]]
+name = "e2e_comm"
+path = "src/bin/e2e_comm.rs"
+required-features = ["e2e"]
+
+[[bin]]
+name = "e2e_isolation"
+path = "src/bin/e2e_isolation.rs"
+required-features = ["e2e"]
+
+[[bin]]
+name = "e2e_pd"
+path = "src/bin/e2e_pd.rs"
+required-features = ["e2e"]
+
+[[bin]]
+name = "e2e_flow"
+path = "src/bin/e2e_flow.rs"
+required-features = ["e2e"]
+
+[[bin]]
+name = "e2e_iot_dataset"
+path = "src/bin/e2e_iot_dataset.rs"
+required-features = ["e2e"]
+
+[[bin]]
+name = "e2e_device_workspace"
+path = "src/bin/e2e_device_workspace.rs"
+required-features = ["e2e"]

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic acceptance fixture, not a production IoT standard.
+     bit-field below is a proposed requirement, deliberately tests unknown-element handling. -->
+<simterm-import>
+  <system name="压力测试-环境采集">
+    <group name="多分支配置">
+      <protocol id="stress_config" name="双列表分支配置" type="Request">
+        <field name="类型" len="1" enc="hex" value="31" role="type_code"/>
+        <field name="模式" len="1" enc="hex" value="01"/>
+        <field name="测点数" len="1" enc="hex" value="02" role="device_count" when-field="模式" when-value="01"/>
+        <field name="测点列表" len="1" enc="hex" value="{vlen}" role="device_list" when-field="模式" when-value="01">
+          <unit name="编号" len="1" enc="hex" value="01"/>
+          <unit name="温度" len="2" enc="uint" value="300"/>
+          <unit name="标签" len="2" enc="ascii" value="Ab"/>
+        </field>
+        <field name="执行器数" len="1" enc="hex" value="01" role="device_count" when-field="模式" when-value="02"/>
+        <field name="执行器列表" len="1" enc="hex" value="{vlen}" role="device_list" when-field="模式" when-value="02">
+          <unit name="编号" len="1" enc="hex" value="09"/>
+          <unit name="动作" len="1" enc="hex" value="01"/>
+        </field>
+        <field name="扩展数" len="1" enc="hex" value="01" role="device_count"/>
+        <field name="扩展列表" len="1" enc="hex" value="{vlen}" role="device_list">
+          <unit name="参数" len="1" enc="hex" value="A0"/>
+          <unit name="值" len="2" enc="hex" value="1234"/>
+        </field>
+        <field name="尾标" len="2" enc="hex" value="55AA"/>
+      </protocol>
+      <protocol id="stress_nested" name="网关-设备-测点嵌套上报" type="Event">
+        <field name="设备数" len="1" enc="hex" value="02" role="device_count"/>
+        <field name="设备列表" len="1" enc="hex" value="{vlen}" role="device_list">
+          <unit name="设备编号" len="1" enc="hex" value="01"/>
+          <unit name="测点数" len="1" enc="hex" value="02" role="device_count"/>
+          <unit name="测点列表" len="1" enc="hex" value="{vlen}" role="device_list">
+            <unit name="读数" len="1" enc="hex" value="11"/>
+          </unit>
+        </field>
+        <field name="尾标" len="1" enc="hex" value="EE"/>
+      </protocol>
+    </group>
+  </system>
+  <system name="压力测试-门禁控制">
+    <group name="状态与告警">
+      <protocol id="stress_bits" name="位段控制与分支" type="Request">
+        <field name="类型" len="1" enc="hex" value="31" role="type_code"/>
+        <field name="状态" len="1" enc="hex" value="00">
+          <bit-field name="启用" bit-offset="7" bit-width="1" value="1"/>
+          <bit-field name="模式位" bit-offset="4" bit-width="3" value="5"/>
+          <bit-field name="通道" bit-offset="0" bit-width="4" value="3"/>
+        </field>
+        <field name="开门时长" len="1" enc="hex" value="0A" when-field="模式位" when-value="5"/>
+        <field name="尾标" len="1" enc="hex" value="EF"/>
+      </protocol>
+      <protocol id="stress_access" name="门禁独立字节协议" type="Request">
+        <field name="类型" len="1" enc="hex" value="41" role="type_code"/>
+        <field name="门号" len="1" enc="hex" value="03"/>
+        <field name="持续时间" len="2" enc="uint" value="300"/>
+        <field name="标签" len="2" enc="ascii" value="Az"/>
+      </protocol>
+    </group>
+  </system>
+</simterm-import>

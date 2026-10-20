@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<simterm-import>
+  <!-- ============ 全局共享字典 ============ -->
+  <dict key="signal_type" name="信令类型" byte-len="1">
+    <item value="01" label="配置请求"/>
+    <item value="02" label="配置数据"/>
+    <item value="03" label="配置应答"/>
+    <item value="04" label="注册"/>
+    <item value="05" label="注册响应"/>
+    <item value="06" label="呼叫请求"/>
+    <item value="07" label="来电"/>
+    <item value="08" label="呼叫应答"/>
+    <item value="09" label="呼叫确认"/>
+    <item value="0A" label="心跳"/>
+    <item value="0B" label="心跳应答"/>
+  </dict>
+  <dict key="resp_result" name="响应结果" byte-len="1">
+    <item value="AA" label="成功"/>
+    <item value="01" label="失败"/>
+  </dict>
+  <dict key="call_result" name="呼叫结果" byte-len="1">
+    <item value="01" label="接收"/>
+    <item value="02" label="拒绝"/>
+  </dict>
+  <dict key="dev_sn" name="设备档案" byte-len="3">
+    <item value="000000" label="服务端"/>
+    <item value="000001" label="终端A"/>
+    <item value="000002" label="终端B"/>
+  </dict>
+
+  <!-- ============ 设备通信协议 ============
+       帧 = 源设备3B + 目标设备3B + 信令类型1B + 安全信息4B + 业务字段
+       信令类型码与安全信息都在协议体内, 不放公共头;
+       识别: 信令类型码自动断言(免手写匹配条件);
+       安全信息: 注册响应捕获(按终端分桶), 其余协议 {session} 自动携带 -->
+  <system name="设备通信协议" description="两终端单通道全流程: 配置 → 注册(服务端分配安全信息) → A主叫呼叫B → B自动应答接收">
+    <group name="接入管理">
+      <header enabled="true">
+        <field name="源设备编号" len="3" enc="hex" value="000001" dict="dev_sn" role="src_id"/>
+        <field name="目标设备编号" len="3" enc="hex" value="000000" dict="dev_sn" role="dst_id"/>
+      </header>
+      <protocol id="dev_cfg_req" name="配置请求" type="Request" description="上电第一步: 向服务端请求配置数据">
+        <field name="信令类型" len="1" enc="hex" value="01" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+      </protocol>
+      <protocol id="dev_cfg_data" name="配置数据" type="Request" description="服务端下发: 服务器IP(自动捕获) + 心跳周期; 收到自动回配置应答" auto-respond="dev_cfg_ack" delay="50">
+        <field name="信令类型" len="1" enc="hex" value="02" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+        <field name="服务器IP" len="4" enc="hex" value="C0 A8 00 01" role="capture"/>
+        <field name="心跳周期" len="2" enc="hex" value="00 3C"/>
+      </protocol>
+      <protocol id="dev_cfg_ack" name="配置应答" type="Response" description="收到配置数据自动回成功; 源/目标互换回给服务端">
+        <field name="源设备编号" len="3" enc="hex" value="{req:目标设备编号}" dict="dev_sn" role="src_id" header-ref="源设备编号"/>
+        <field name="目标设备编号" len="3" enc="hex" value="{req:源设备编号}" dict="dev_sn" role="dst_id" header-ref="目标设备编号"/>
+        <field name="信令类型" len="1" enc="hex" value="03" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+        <field name="应答结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+      <protocol id="dev_reg" name="注册" type="Request" description="开机注册: 安全信息留空(全0); 换「源设备编号」逐台注册">
+        <field name="信令类型" len="1" enc="hex" value="04" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+      </protocol>
+      <protocol id="dev_reg_resp" name="注册响应" type="Response" description="服务端分配安全信息(4B): 收到自动存入本终端(按源设备编号分桶), 后续 {session} 自动携带; 注册完成自动开始定时心跳保活" auto-periodic="dev_heartbeat" auto-periodic-interval="30000">
+        <field name="信令类型" len="1" enc="hex" value="05" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+        <field name="注册结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+      <protocol id="dev_heartbeat" name="心跳" type="Heartbeat" description="注册完成后自动定时发送(30秒)保活; 安全信息自动携带">
+        <field name="信令类型" len="1" enc="hex" value="0A" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+      </protocol>
+      <protocol id="dev_heartbeat_resp" name="心跳应答" type="Response" description="保活确认">
+        <field name="信令类型" len="1" enc="hex" value="0B" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+        <field name="保活结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+    </group>
+    <group name="呼叫控制">
+      <header enabled="true">
+        <field name="源设备编号" len="3" enc="hex" value="000001" dict="dev_sn" role="src_id"/>
+        <field name="目标设备编号" len="3" enc="hex" value="000000" dict="dev_sn" role="dst_id"/>
+      </header>
+      <protocol id="dev_call" name="呼叫请求" type="Request" description="A主叫: 源设备编号选终端A, 被叫设备选终端B">
+        <field name="信令类型" len="1" enc="hex" value="06" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+        <field name="被叫设备" len="3" enc="hex" value="000002" dict="dev_sn" role="dst_id"/>
+      </protocol>
+      <protocol id="dev_incoming" name="来电" type="Request" description="服务端下发来电给被叫终端; 收到自动回呼叫应答(接收)" auto-respond="dev_call_ack" delay="50">
+        <field name="信令类型" len="1" enc="hex" value="07" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+        <field name="主叫设备" len="3" enc="hex" value="000001" dict="dev_sn" role="src_id"/>
+      </protocol>
+      <protocol id="dev_call_ack" name="呼叫应答" type="Response" description="被叫终端自动回复接收; 源/目标互换, 携带被叫终端自己的安全信息">
+        <field name="源设备编号" len="3" enc="hex" value="{req:目标设备编号}" dict="dev_sn" role="src_id" header-ref="源设备编号"/>
+        <field name="目标设备编号" len="3" enc="hex" value="{req:源设备编号}" dict="dev_sn" role="dst_id" header-ref="目标设备编号"/>
+        <field name="信令类型" len="1" enc="hex" value="08" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+        <field name="呼叫结果" len="1" enc="hex" value="01" dict="call_result"/>
+        <field name="主叫设备" len="3" enc="hex" value="{req:主叫设备}" dict="dev_sn" role="src_id"/>
+      </protocol>
+      <protocol id="dev_call_cfm" name="呼叫确认" type="Response" description="服务端通知主叫: 对端已接收; 呼叫结果自动捕获">
+        <field name="信令类型" len="1" enc="hex" value="09" dict="signal_type" role="type_code"/>
+        <field name="安全信息" len="4" enc="hex" value="{session}" role="session"/>
+        <field name="呼叫结果" len="1" enc="hex" value="01" dict="call_result" role="capture"/>
+        <field name="被叫设备" len="3" enc="hex" value="000002" dict="dev_sn" role="dst_id"/>
+      </protocol>
+    </group>
+    <!-- 业务流程示例: 设备通信全流程(配置→注册→通信→结束) -->
+    <flow name="设备通信全流程" description="先配置设备(逐台请求配置数据, 应答由引擎自动接续) → 逐台注册领取安全信息 → A主叫B(来电/应答自动接续, 等呼叫确认) → 通信保活(心跳) → 结束">
+      <step id="cfg" name="配置设备" protocol="dev_cfg_req" terminal-mode="each" expect="dev_cfg_data" timeout-ms="5000" on-success="reg"/>
+      <step id="reg" name="逐台注册" protocol="dev_reg" terminal-mode="each" expect="dev_reg_resp" timeout-ms="5000" on-success="call"/>
+      <step id="call" name="A主叫B" protocol="dev_call" expect="dev_call_cfm" timeout-ms="5000" on-success="beat">
+        <param name="被叫设备" value="000002"/>
+      </step>
+      <step id="beat" name="通信保活" protocol="dev_heartbeat" expect="dev_heartbeat_resp" timeout-ms="5000"/>
+    </flow>
+
+  </system>
+</simterm-import>

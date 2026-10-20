@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<simterm-import>
+  <!-- ============ 全局共享字典（跨系统/分组可见: 设备档案 + 通用结果类） ============ -->
+  <dict key="video_dev_sn" name="设备档案" byte-len="4">
+    <item value="00000001" label="设备序号0001"/>
+    <item value="00000002" label="设备序号0002"/>
+  </dict>
+  <dict key="resp_result" name="响应结果" byte-len="1">
+    <item value="AA" label="成功"/>
+    <item value="01" label="失败"/>
+  </dict>
+  <dict key="video_codec" name="视频编码格式" byte-len="1">
+    <item value="01" label="H.264"/>
+    <item value="02" label="H.265"/>
+    <item value="03" label="VP9"/>
+    <item value="04" label="AV1"/>
+    <item value="05" label="MPEG-4 / MPEG-2"/>
+  </dict>
+  <dict key="bye_reason" name="挂断原因" byte-len="1">
+    <item value="00" label="正常挂断"/>
+    <item value="01" label="超时挂断"/>
+    <item value="02" label="故障挂断"/>
+  </dict>
+
+  <!-- ============ 一、视频管理协议（管理端 ↔ 设备, 13B 公共头按分组独立定义） ============ -->
+  <system name="视频管理协议" description="视频通信协议·管理面: 设备配置(批量条目)/参数下发/记录查询/网关配置; 13B 头, token 鉴权回填">
+    <group name="设备配置">
+      <header enabled="true">
+        <field name="IP地址" len="4" enc="hex" value="C0 A8 00 01"/>
+        <field name="端口" len="2" enc="hex" value="13 88"/>
+        <field name="掩码" len="1" enc="hex" value="18"/>
+        <field name="token" len="2" enc="hex" value="{session}" role="session"/>
+        <field name="系统id" len="1" enc="hex" value="01"/>
+        <field name="操作类型" len="1" enc="hex" value="01" dict="mgmt_op" role="op_type"/>
+        <field name="配置类型" len="1" enc="hex" value="11" dict="cfg_type"/>
+        <field name="子类型" len="1" enc="hex" value="01" dict="sub_type"/>
+      </header>
+      <dict key="mgmt_op" name="管理操作类型" byte-len="1">
+        <item value="01" label="新增设备"/>
+        <item value="02" label="删除设备"/>
+        <item value="03" label="修改设备"/>
+      </dict>
+      <dict key="cfg_type" name="配置类型" byte-len="1">
+        <item value="11" label="设备配置"/>
+        <item value="22" label="网关配置"/>
+        <item value="33" label="其他配置"/>
+      </dict>
+      <dict key="sub_type" name="配置子类型" byte-len="1">
+        <item value="00" label="非设备"/>
+        <item value="01" label="视频会议设备配置"/>
+        <item value="02" label="监控设备配置"/>
+        <item value="03" label="布控球设备配置"/>
+      </dict>
+      <protocol id="mgmt_dev_cfg_resp" name="设备信息配置响应" type="Response" description="配置结果(0xAA 成功); 成功时本批设备自动入库设备档案">
+        <match>
+          <cond field="配置类型" value="设备配置"/>
+          <cond field="响应结果" value="成功"/>
+        </match>
+        <field name="配置类型" len="1" enc="hex" value="11" dict="cfg_type" header-ref="配置类型"/>
+        <field name="子类型" len="1" enc="hex" value="01" dict="sub_type" header-ref="子类型"/>
+        <field name="token" len="2" enc="hex" value="{req:token}" role="session" header-ref="token"/>
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+      <protocol id="mgmt_dev_cfg" name="设备信息配置" type="Request" auto-respond="mgmt_dev_cfg_resp" delay="100" description="批量配置设备(最多100条): 条目数 + 设备列表(每台8B=编号3+序号4+编码1), 应答成功自动同步设备档案">
+        <match>
+          <cond field="配置类型" value="设备配置"/>
+        </match>
+        <field name="配置类型" len="1" enc="hex" value="11" dict="cfg_type" header-ref="配置类型"/>
+        <field name="子类型" len="1" enc="hex" value="01" dict="sub_type" header-ref="子类型"/>
+        <field name="条目数" len="1" enc="hex" value="01" role="device_count"/>
+        <field name="设备列表" len="8" enc="hex" value="{vlen}" role="device_list">
+          <unit name="设备编号" len="3" enc="hex" value=""/>
+          <unit name="设备序号" len="4" enc="hex" value="" dict="video_dev_sn" role="device_sn"/>
+          <unit name="视频编码格式" len="1" enc="hex" value="01" dict="video_codec"/>
+        </field>
+      </protocol>
+    </group>
+    <group name="参数下发">
+      <header enabled="true">
+        <field name="IP地址" len="4" enc="hex" value="C0 A8 00 01"/>
+        <field name="端口" len="2" enc="hex" value="13 88"/>
+        <field name="掩码" len="1" enc="hex" value="18"/>
+        <field name="token" len="2" enc="hex" value="{session}" role="session"/>
+        <field name="系统id" len="1" enc="hex" value="01"/>
+        <field name="操作类型" len="1" enc="hex" value="01" dict="mgmt_op" role="op_type"/>
+        <field name="配置类型" len="1" enc="hex" value="33" dict="cfg_type"/>
+        <field name="子类型" len="1" enc="hex" value="01" dict="sub_type"/>
+      </header>
+      <dict key="mgmt_op" name="管理操作类型" byte-len="1">
+        <item value="01" label="新增设备"/>
+        <item value="02" label="删除设备"/>
+        <item value="03" label="修改设备"/>
+      </dict>
+      <dict key="cfg_type" name="配置类型" byte-len="1">
+        <item value="11" label="设备配置"/>
+        <item value="22" label="网关配置"/>
+        <item value="33" label="其他配置"/>
+      </dict>
+      <dict key="sub_type" name="配置子类型" byte-len="1">
+        <item value="00" label="非设备"/>
+        <item value="01" label="视频会议设备配置"/>
+        <item value="02" label="监控设备配置"/>
+        <item value="03" label="布控球设备配置"/>
+      </dict>
+      <dict key="param_type" name="参数类型" byte-len="1">
+        <item value="01" label="心跳周期(秒)"/>
+        <item value="02" label="录像码率(kbps)"/>
+        <item value="03" label="音频增益(dB)"/>
+        <item value="04" label="叠加字幕开关"/>
+      </dict>
+      <dict key="apply_scope" name="生效范围" byte-len="1">
+        <item value="01" label="立即生效"/>
+        <item value="02" label="重启后生效"/>
+        <item value="03" label="指定模块重载"/>
+      </dict>
+      <protocol id="mgmt_param_set" name="设备参数下发" type="Request" auto-respond="mgmt_param_ack" delay="80" description="其他配置(0x33): 批量下发参数项(每项6B=类型1+保留1+值4), 条目数联动逐项填写">
+        <match>
+          <cond field="配置类型" value="其他配置"/>
+          <cond field="子类型" value="视频会议设备配置"/>
+          <cond field="参数项数" value="01"/>
+        </match>
+        <field name="配置类型" len="1" enc="hex" value="33" dict="cfg_type" header-ref="配置类型"/>
+        <field name="参数项数" len="1" enc="hex" value="01" role="device_count"/>
+        <field name="参数列表" len="6" enc="hex" value="{vlen}" role="device_list">
+          <unit name="参数类型" len="1" enc="hex" value="01" dict="param_type"/>
+          <unit name="保留" len="1" enc="hex" value="00"/>
+          <unit name="参数值" len="4" enc="hex" value="00 00 00 0A"/>
+        </field>
+      </protocol>
+      <protocol id="mgmt_param_ack" name="设备参数确认" type="Response" description="第1轮·设备逐项校验后回总结果(0xAA 全部成功)">
+        <match>
+          <cond field="配置类型" value="其他配置"/>
+          <cond field="子类型" value="视频会议设备配置"/>
+          <cond field="响应结果" value="成功"/>
+        </match>
+        <field name="token" len="2" enc="hex" value="{req:token}" role="session" header-ref="token"/>
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+      <protocol id="mgmt_param_apply" name="参数生效指令" type="Request" description="第2轮·平台下发生效指令, 设备按范围应用参数" auto-respond="mgmt_param_done" delay="100">
+        <field name="配置类型" len="1" enc="hex" value="33" dict="cfg_type" header-ref="配置类型"/>
+        <field name="生效范围" len="1" enc="hex" value="01" dict="apply_scope"/>
+      </protocol>
+      <protocol id="mgmt_param_done" name="生效完成通知" type="Response" description="第2轮·设备回报生效完成, 参数下发流程结束">
+        <field name="token" len="2" enc="hex" value="{req:token}" role="session" header-ref="token"/>
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+    </group>
+    <group name="记录查询">
+      <header enabled="true">
+        <field name="IP地址" len="4" enc="hex" value="C0 A8 00 01"/>
+        <field name="端口" len="2" enc="hex" value="13 88"/>
+        <field name="掩码" len="1" enc="hex" value="18"/>
+        <field name="token" len="2" enc="hex" value="{session}" role="session"/>
+        <field name="系统id" len="1" enc="hex" value="01"/>
+        <field name="操作类型" len="1" enc="hex" value="01" dict="mgmt_op" role="op_type"/>
+        <field name="配置类型" len="1" enc="hex" value="33" dict="cfg_type"/>
+        <field name="子类型" len="1" enc="hex" value="02" dict="sub_type"/>
+      </header>
+      <dict key="mgmt_op" name="管理操作类型" byte-len="1">
+        <item value="01" label="新增设备"/>
+        <item value="02" label="删除设备"/>
+        <item value="03" label="修改设备"/>
+      </dict>
+      <dict key="cfg_type" name="配置类型" byte-len="1">
+        <item value="11" label="设备配置"/>
+        <item value="22" label="网关配置"/>
+        <item value="33" label="其他配置"/>
+      </dict>
+      <dict key="sub_type" name="配置子类型" byte-len="1">
+        <item value="00" label="非设备"/>
+        <item value="01" label="视频会议设备配置"/>
+        <item value="02" label="监控设备配置"/>
+        <item value="03" label="布控球设备配置"/>
+      </dict>
+      <protocol id="mgmt_rec_query" name="通话记录查询" type="Request" auto-respond="mgmt_rec_data" delay="80" description="查询通话记录(时间范围+条数上限), 服务端触发数据回传">
+        <match>
+          <cond field="配置类型" value="其他配置"/>
+          <cond field="子类型" value="监控设备配置"/>
+          <cond field="条数上限" value="00 0A"/>
+        </match>
+        <field name="配置类型" len="1" enc="hex" value="33" dict="cfg_type" header-ref="配置类型"/>
+        <field name="起始时间" len="4" enc="hex" value="00 00 00 00"/>
+        <field name="条数上限" len="2" enc="hex" value="00 0A"/>
+      </protocol>
+      <protocol id="mgmt_rec_data" name="通话记录数据" type="Response" description="第1轮·回传记录(每条14B), 不足上限即全部传完" auto-respond="mgmt_rec_close" delay="150">
+        <match>
+          <cond field="配置类型" value="其他配置"/>
+          <cond field="子类型" value="监控设备配置"/>
+          <cond field="记录条数" value="*"/>
+        </match>
+        <field name="token" len="2" enc="hex" value="{req:token}" role="session" header-ref="token"/>
+        <field name="记录条数" len="2" enc="hex" value="00 03"/>
+        <field name="记录数据" len="14" enc="hex" value="{vlen}" role="device_list">
+          <unit name="对端编号" len="3" enc="hex" value="00 00 02"/>
+          <unit name="开始时间" len="4" enc="hex" value="{timestamp}"/>
+          <unit name="通话时长" len="4" enc="hex" value="00 00 00 3C"/>
+          <unit name="挂断原因" len="1" enc="hex" value="00" dict="bye_reason"/>
+          <unit name="保留" len="2" enc="hex" value="00 00"/>
+        </field>
+      </protocol>
+      <protocol id="mgmt_rec_close" name="查询关闭" type="Request" description="第2轮·平台确认接收完毕, 服务端清理查询会话, 流程结束">
+        <match>
+          <cond field="配置类型" value="其他配置"/>
+          <cond field="子类型" value="监控设备配置"/>
+          <cond field="响应结果" value="成功"/>
+        </match>
+        <field name="配置类型" len="1" enc="hex" value="33" dict="cfg_type" header-ref="配置类型"/>
+        <field name="token" len="2" enc="hex" value="{req:token}" role="session" header-ref="token"/>
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+    </group>
+    <group name="网关配置">
+      <header enabled="true">
+        <field name="IP地址" len="4" enc="hex" value="C0 A8 00 01"/>
+        <field name="端口" len="2" enc="hex" value="13 88"/>
+        <field name="掩码" len="1" enc="hex" value="18"/>
+        <field name="token" len="2" enc="hex" value="{session}" role="session"/>
+        <field name="系统id" len="1" enc="hex" value="01"/>
+        <field name="操作类型" len="1" enc="hex" value="01" dict="mgmt_op" role="op_type"/>
+        <field name="配置类型" len="1" enc="hex" value="22" dict="cfg_type"/>
+        <field name="子类型" len="1" enc="hex" value="00" dict="sub_type"/>
+      </header>
+      <dict key="mgmt_op" name="管理操作类型" byte-len="1">
+        <item value="01" label="新增设备"/>
+        <item value="02" label="删除设备"/>
+        <item value="03" label="修改设备"/>
+      </dict>
+      <dict key="cfg_type" name="配置类型" byte-len="1">
+        <item value="11" label="设备配置"/>
+        <item value="22" label="网关配置"/>
+        <item value="33" label="其他配置"/>
+      </dict>
+      <dict key="sub_type" name="配置子类型" byte-len="1">
+        <item value="00" label="非设备"/>
+        <item value="01" label="视频会议设备配置"/>
+        <item value="02" label="监控设备配置"/>
+        <item value="03" label="布控球设备配置"/>
+      </dict>
+      <protocol id="mgmt_gw_cfg_resp" name="网关信息配置响应" type="Response" description="配置结果(0xAA 成功)">
+        <match>
+          <cond field="配置类型" value="网关配置"/>
+          <cond field="响应结果" value="成功"/>
+        </match>
+        <field name="配置类型" len="1" enc="hex" value="22" dict="cfg_type" header-ref="配置类型"/>
+        <field name="token" len="2" enc="hex" value="{req:token}" role="session" header-ref="token"/>
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+      <protocol id="mgmt_gw_cfg" name="网关信息配置" type="Request" auto-respond="mgmt_gw_cfg_resp" delay="100" description="三组网关地址 + 设备MAC + 经纬度位置">
+        <match>
+          <cond field="配置类型" value="网关配置"/>
+        </match>
+        <field name="配置类型" len="1" enc="hex" value="22" dict="cfg_type" header-ref="配置类型"/>
+        <field name="子类型" len="1" enc="hex" value="00" dict="sub_type" header-ref="子类型"/>
+        <field name="操作序列号" len="4" enc="hex" value="{seq}"/>
+        <field name="网关1 IP" len="4" enc="hex" value="C0 A8 00 01"/>
+        <field name="网关1端口" len="2" enc="hex" value="13 88"/>
+        <field name="网关2 IP" len="4" enc="hex" value="C0 A8 00 02"/>
+        <field name="网关2端口" len="2" enc="hex" value="13 89"/>
+        <field name="网关3 IP" len="4" enc="hex" value="C0 A8 00 03"/>
+        <field name="网关3端口" len="2" enc="hex" value="13 8A"/>
+        <field name="网关设备物理MAC" len="4" enc="hex" value="00 1A 2B 3C"/>
+        <field name="位置经度" len="2" enc="hex" value="01 2D"/>
+        <field name="位置纬度" len="2" enc="hex" value="02 58"/>
+        <field name="位置编码" len="3" enc="hex" value="00 00 01"/>
+      </protocol>
+    </group>
+  </system>
+  <!-- ============ 二、视频设备协议（设备 ↔ 平台/对端, 13B 公共头按分组独立定义） ============ -->
+  <system name="视频设备协议" description="视频通信协议·设备面: 注册(token 鉴权)/会话管理/视频通信6步呼叫链; 13B 头, 设备编号+token">
+    <group name="注册">
+      <header enabled="true">
+        <field name="IP地址" len="4" enc="hex" value="C0 A8 00 01"/>
+        <field name="端口" len="2" enc="hex" value="13 88"/>
+        <field name="掩码" len="1" enc="hex" value="18"/>
+        <field name="设备编号" len="3" enc="hex" value="{node_id}" role="src_id"/>
+        <field name="token" len="2" enc="hex" value="{session}" role="session"/>
+      </header>
+      <protocol id="dev_reg" name="设备注册" type="Request" description="注册申请(未认证 token=0000); 响应成功后 token 自动保存, 后续自动携带">
+        <field name="设备序号" len="4" enc="hex" value="00000001" dict="video_dev_sn" role="device_sn"/>
+        <field name="注册申请时间" len="4" enc="hex" value="{timestamp}"/>
+      </protocol>
+      <protocol id="dev_reg_resp" name="注册响应" type="Response" description="0xAA 成功; token(2B) 由服务端分配, 收到后自动存入节点">
+        <match>
+          <cond field="响应结果" value="成功"/>
+        </match>
+        <field name="token" len="2" enc="hex" value="{random}" role="session" header-ref="token"/>
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+        <field name="注册成功时间" len="4" enc="hex" value="{timestamp}"/>
+      </protocol>
+    </group>
+    <group name="会话管理">
+      <header enabled="true">
+        <field name="IP地址" len="4" enc="hex" value="C0 A8 00 01"/>
+        <field name="端口" len="2" enc="hex" value="13 88"/>
+        <field name="掩码" len="1" enc="hex" value="18"/>
+        <field name="设备编号" len="3" enc="hex" value="{node_id}" role="src_id"/>
+        <field name="token" len="2" enc="hex" value="{session}" role="session"/>
+      </header>
+      <dict key="dev_state" name="设备状态" byte-len="1">
+        <item value="01" label="在线"/>
+        <item value="02" label="忙碌(通话中)"/>
+        <item value="03" label="离线"/>
+      </dict>
+      <dict key="logout_reason" name="注销原因" byte-len="1">
+        <item value="00" label="正常注销"/>
+        <item value="01" label="维护重启"/>
+        <item value="02" label="异常退出"/>
+      </dict>
+      <protocol id="dev_heartbeat" name="设备心跳" type="Heartbeat" description="周期保活(控制台可开周期发送), 服务端回 ACK">
+        <field name="状态" len="1" enc="hex" value="01" dict="dev_state"/>
+        <field name="运行时长" len="4" enc="hex" value="{timestamp}"/>
+      </protocol>
+      <protocol id="dev_heartbeat_ack" name="心跳应答" type="Response" description="在线确认; 连续丢失服务端将设备置离线">
+        <match>
+          <cond field="状态" value="*"/>
+        </match>
+        <field name="token" len="2" enc="hex" value="{req:token}" role="session" header-ref="token"/>
+        <field name="状态" len="1" enc="hex" value="01" dict="dev_state"/>
+      </protocol>
+      <protocol id="dev_logout" name="退出登录" type="Request" description="会话第三轮: 设备主动注销, 服务端吊销 token 后回确认">
+        <field name="设备序号" len="4" enc="hex" value="00000001" dict="video_dev_sn" role="device_sn"/>
+        <field name="注销原因" len="1" enc="hex" value="00" dict="logout_reason"/>
+      </protocol>
+      <protocol id="dev_logout_resp" name="退出登录响应" type="Response" description="token 已吊销; 客户端应清空本地 token">
+        <match>
+          <cond field="响应结果" value="成功"/>
+        </match>
+        <field name="token" len="2" enc="hex" value="00 00" role="session" header-ref="token"/>
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+    </group>
+    <group name="视频通信">
+      <header enabled="true">
+        <field name="IP地址" len="4" enc="hex" value="C0 A8 00 01"/>
+        <field name="端口" len="2" enc="hex" value="13 88"/>
+        <field name="掩码" len="1" enc="hex" value="18"/>
+        <field name="设备编号" len="3" enc="hex" value="{node_id}" role="src_id"/>
+        <field name="token" len="2" enc="hex" value="{session}" role="session"/>
+      </header>
+      <dict key="biz_type" name="业务类型" byte-len="1">
+        <item value="01" label="视频通信"/>
+        <item value="02" label="语音通信"/>
+        <item value="03" label="会议邀请"/>
+        <item value="00" label="无效"/>
+      </dict>
+      <dict key="call_result" name="呼叫应答结果" byte-len="1">
+        <item value="FF" label="接受通信"/>
+        <item value="01" label="拒绝通信"/>
+      </dict>
+      <dict key="chan_dir" name="通道方向" byte-len="1">
+        <item value="01" label="上行通道"/>
+        <item value="02" label="下行通道"/>
+      </dict>
+      <!-- 呼叫申请后服务端依次分配 上行/下行 通道, 模拟端各回 0xAA 接受, 两条确认后服务端才下发呼叫 -->
+      <protocol id="dev_chan_up_cfg" name="上行通道配置" type="Request" description="服务端分配上行通道: 方向+媒体端口; 模拟端回 0xAA 接受" auto-respond="dev_chan_ack" delay="50">
+        <match>
+          <cond field="通道方向" value="上行通道"/>
+        </match>
+        <field name="通道方向" len="1" enc="hex" value="01" dict="chan_dir"/>
+        <field name="媒体端口" len="2" enc="hex" value="1F 40"/>
+      </protocol>
+      <protocol id="dev_chan_down_cfg" name="下行通道配置" type="Request" description="服务端分配下行通道: 方向+媒体端口; 模拟端回 0xAA 接受" auto-respond="dev_chan_ack" delay="50">
+        <match>
+          <cond field="通道方向" value="下行通道"/>
+        </match>
+        <field name="通道方向" len="1" enc="hex" value="02" dict="chan_dir"/>
+        <field name="媒体端口" len="2" enc="hex" value="1F 41"/>
+      </protocol>
+      <protocol id="dev_chan_ack" name="通道配置响应" type="Response" description="0xAA 表示接受通道分配; 上/下行各回一次">
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+      <protocol id="dev_call" name="视频通信申请" type="Request" description="向对端发起通信申请; 服务端随后依次分配上/下行通道, 设备回 0xAA 后才下发呼叫" delay="100">
+        <field name="对端设备编号" len="3" enc="hex" value="00 00 02" role="dst_id"/>
+        <field name="申请时间" len="4" enc="hex" value="{timestamp}"/>
+        <field name="业务类型" len="1" enc="hex" value="01" dict="biz_type"/>
+      </protocol>
+      <protocol id="dev_ring" name="视频通信呼叫" type="Request" description="第1轮·平台下发: 编号/时间回填自申请" auto-respond="dev_call_ans" delay="100">
+        <match>
+          <cond field="业务类型" value="*"/>
+        </match>
+        <field name="对端设备编号" len="3" enc="hex" value="{req:对端设备编号}" role="dst_id"/>
+        <field name="申请时间" len="4" enc="hex" value="{req:申请时间}"/>
+        <field name="业务类型" len="1" enc="hex" value="{req:业务类型}" dict="biz_type"/>
+      </protocol>
+      <protocol id="dev_call_ans" name="视频通信呼叫应答" type="Response" description="第2轮·对端应答: 接受(FF)/拒绝; 接受后回传媒体端口">
+        <field name="对端设备编号" len="3" enc="hex" value="{req:对端设备编号}" role="dst_id"/>
+        <field name="申请时间" len="4" enc="hex" value="{req:申请时间}"/>
+        <field name="应答结果" len="1" enc="hex" value="FF" dict="call_result"/>
+        <field name="媒体端口" len="2" enc="hex" value="1F 90"/>
+      </protocol>
+      <protocol id="dev_media" name="媒体协商" type="Request" description="第2轮·双向交换媒体参数: 编码/端口/流标识; 协商成功进入通话" auto-respond="dev_comm_resp" delay="80">
+        <match>
+          <cond field="视频编码" value="*"/>
+        </match>
+        <field name="对端设备编号" len="3" enc="hex" value="{req:对端设备编号}" role="dst_id"/>
+        <field name="视频编码" len="1" enc="hex" value="01" dict="video_codec"/>
+        <field name="媒体端口" len="2" enc="hex" value="{req:媒体端口}"/>
+        <field name="流标识" len="4" enc="hex" value="{random}"/>
+      </protocol>
+      <protocol id="dev_comm_resp" name="视频通信响应" type="Response" description="第3轮·建立确认(0xAA 成功), 通话开始">
+        <field name="对端设备编号" len="3" enc="hex" value="{req:对端设备编号}" role="dst_id"/>
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+        <field name="通话开始时间" len="4" enc="hex" value="{timestamp}"/>
+      </protocol>
+      <protocol id="dev_bye" name="通话挂断" type="Request" description="第3轮·任一方挂断: 0=正常 1=超时 2=故障" auto-respond="dev_bye_ack" delay="80">
+        <match>
+          <cond field="挂断原因" value="*"/>
+        </match>
+        <field name="对端设备编号" len="3" enc="hex" value="{req:对端设备编号}" role="dst_id"/>
+        <field name="挂断原因" len="1" enc="hex" value="00" dict="bye_reason"/>
+        <field name="通话时长" len="4" enc="hex" value="00 00 00 1E"/>
+      </protocol>
+      <protocol id="dev_bye_ack" name="挂断确认" type="Response" description="释放媒体资源, 呼叫流程结束">
+        <field name="对端设备编号" len="3" enc="hex" value="{req:对端设备编号}" role="dst_id"/>
+        <field name="响应结果" len="1" enc="hex" value="AA" dict="resp_result" role="result"/>
+      </protocol>
+    </group>
+  </system>
+</simterm-import>

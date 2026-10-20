@@ -1,0 +1,149 @@
+.datagram-detail {
+  position: fixed; inset: 42px 0 0; z-index: 200; display: flex; flex-direction: column; min-width: 0;
+  color: hsl(var(--foreground)); background: hsl(var(--background));
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+.datagram-detail [data-kind="header"] { --section-hue: 211; --section-accent: var(--section-hue) 78% 42%; --section-ink: var(--section-hue) 78% 39%; }
+.datagram-detail [data-kind="header_extension"] { --section-hue: 263; --section-accent: var(--section-hue) 65% 48%; --section-ink: var(--section-hue) 65% 46%; }
+.datagram-detail [data-kind="payload"] { --section-hue: 164; --section-accent: var(--section-hue) 69% 30%; --section-ink: var(--section-hue) 69% 25%; }
+.datagram-detail [data-kind="trailer"] { --section-hue: 35; --section-accent: var(--section-hue) 79% 37%; --section-ink: var(--section-hue) 79% 28%; }
+.datagram-detail [data-kind="unparsed"] { --section-hue: 220; --section-accent: var(--section-hue) 12% 44%; --section-ink: var(--section-hue) 12% 40%; }
+.datagram-detail [data-kind="header"][data-tone="1"] { --section-hue: 227; }
+.datagram-detail [data-kind="header"][data-tone="2"] { --section-hue: 195; --section-ink: var(--section-hue) 78% 30%; }
+.datagram-detail [data-kind="header_extension"][data-tone="1"] { --section-hue: 280; }
+.datagram-detail [data-kind="header_extension"][data-tone="2"] { --section-hue: 247; }
+.datagram-detail [data-kind="payload"][data-tone="1"] { --section-hue: 180; }
+.datagram-detail [data-kind="payload"][data-tone="2"] { --section-hue: 149; }
+.datagram-detail [data-kind="trailer"][data-tone="1"] { --section-hue: 25; }
+.datagram-detail [data-kind="trailer"][data-tone="2"] { --section-hue: 43; }
+.dark .datagram-detail [data-kind="header"] { --section-accent: var(--section-hue) 88% 69%; }
+.dark .datagram-detail [data-kind="header_extension"] { --section-accent: var(--section-hue) 84% 75%; }
+.dark .datagram-detail [data-kind="payload"] { --section-accent: var(--section-hue) 63% 58%; }
+.dark .datagram-detail [data-kind="trailer"] { --section-accent: var(--section-hue) 87% 65%; }
+.dark .datagram-detail [data-kind="unparsed"] { --section-accent: var(--section-hue) 14% 66%; }
+.dark .datagram-detail [data-kind] { --section-ink: var(--section-accent); }
+.datagram-toolbar { display: flex; flex: none; align-items: center; gap: 12px; min-height: 60px; padding: 10px 22px; border-bottom: 1px solid hsl(var(--border)); }
+.datagram-toolbar h2 { font-size: 15px; font-weight: 650; white-space: nowrap; }
+.datagram-summary { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: hsl(var(--muted-foreground)); }
+.datagram-summary strong { font-size: 14px; font-weight: 600; color: hsl(var(--foreground)); }
+.datagram-summary > span { padding: 0 2px; }
+.datagram-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.datagram-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 22px 30px 30px; scroll-padding-top: 18px; }
+.datagram-metadata { margin-bottom: 20px; }
+.datagram-protocol-line { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.datagram-protocol-line h3 { min-width: 0; font-size: 19px; line-height: 1.4; font-weight: 650; overflow-wrap: anywhere; }
+.datagram-direction { border: 1px solid hsl(var(--border)); border-radius: 4px; padding: 2px 7px; color: hsl(var(--muted-foreground)); font-size: 11px; }
+.datagram-protocol-line time { margin-left: auto; color: hsl(var(--muted-foreground)); font: 12px "Cascadia Code", Consolas, monospace; }
+.datagram-route { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 9px; color: hsl(var(--muted-foreground)); font: 12px "Cascadia Code", Consolas, monospace; }
+.datagram-route > span { overflow-wrap: anywhere; }
+.datagram-route .datagram-node { margin-left: 6px; padding-left: 14px; border-left: 1px solid hsl(var(--border)); font-family: "Segoe UI", "Microsoft YaHei", sans-serif; }
+.datagram-navigation { margin-bottom: 20px; }
+.datagram-segment-bar { display: flex; gap: 3px; height: 6px; border-radius: 3px; overflow: hidden; }
+.datagram-segment-bar span { min-width: 3px; flex-basis: 0; background: hsl(var(--section-accent) / .9); }
+.datagram-section-links { display: flex; flex-wrap: wrap; gap: 6px 9px; margin-top: 9px; }
+.datagram-section-links button { display: flex; align-items: center; gap: 7px; border: 1px solid hsl(var(--section-accent) / .2); border-radius: 4px; padding: 4px 8px; color: hsl(var(--section-ink)); background: hsl(var(--section-accent) / .065); font-size: 12px; }
+.datagram-section-links button > span:last-child { color: hsl(var(--foreground) / .68); font: 11px "Cascadia Code", Consolas, monospace; }
+.datagram-section-links button:hover { border-color: hsl(var(--section-accent) / .5); background: hsl(var(--section-accent) / .12); }
+.datagram-section-dot { width: 6px; height: 6px; border-radius: 1px; background: hsl(var(--section-accent)); }
+.datagram-sections { display: flex; flex-direction: column; gap: 18px; }
+.datagram-section { min-width: 0; border: 1px solid hsl(var(--section-accent) / .34); border-left: 4px solid hsl(var(--section-accent)); border-radius: 7px; background: hsl(var(--card)); overflow: hidden; }
+.datagram-section-heading-wrap { margin: 0; }
+.datagram-section-heading { display: flex; width: 100%; align-items: center; flex-wrap: wrap; gap: 10px 16px; min-height: 48px; padding: 11px 15px; border-bottom: 1px solid hsl(var(--section-accent) / .22); background: hsl(var(--section-accent) / .12); text-align: left; cursor: pointer; }
+.datagram-section-heading:hover { background: hsl(var(--section-accent) / .18); }
+.datagram-detail .datagram-section-heading:focus-visible { outline-color: hsl(var(--section-accent)); outline-offset: -3px; }
+.datagram-section-title { min-width: 0; color: hsl(var(--section-ink)); font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.datagram-section-chevron { flex: none; width: 16px; height: 16px; color: hsl(var(--section-accent)); }
+.datagram-section-count { flex: none; padding: 2px 6px; border: 1px solid hsl(var(--section-accent) / .15); border-radius: 4px; color: hsl(var(--section-ink)); background: hsl(var(--section-accent) / .035); font-size: 10px; font-weight: 500; line-height: 1.4; }
+.datagram-section[data-collapsed="true"] .datagram-section-heading { border-bottom: 0; min-height: 46px; }
+.datagram-section[data-collapsed="true"] { box-shadow: none; }
+.datagram-section[data-collapsed="true"] .datagram-section-chevron { transform: rotate(-90deg); }
+.datagram-section-range { font-size: 11px; color: hsl(var(--foreground) / .68); }
+.datagram-section-range strong { padding-left: 3px; font: 12px "Cascadia Code", Consolas, monospace; color: hsl(var(--foreground) / .8); }
+.datagram-section-size { margin-left: auto; color: hsl(var(--section-ink)); font: 600 16px "Cascadia Code", Consolas, monospace; white-space: nowrap; }
+.datagram-section-size span { margin-left: 5px; color: hsl(var(--foreground) / .75); font-size: 11px; font-weight: 400; }
+.datagram-section-content { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); align-items: start; gap: 12px; padding: 14px; }
+.datagram-section-content[hidden] { display: none; }
+.datagram-field-group:not(.datagram-record) { grid-column: 1 / -1; }
+.datagram-field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 164px), 1fr)); gap: 9px; align-items: stretch; }
+.datagram-field {
+  --field-hue: 211; --field-saturation: 70%;
+  --field-accent: var(--field-hue) var(--field-saturation) 45%;
+  --field-ink: var(--field-hue) var(--field-saturation) 30%;
+  position: relative; display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 12px 12px 11px;
+  border: 1px solid hsl(var(--field-accent) / .3); border-radius: 6px;
+  background: linear-gradient(hsl(var(--field-accent) / .065), hsl(var(--field-accent) / .065)), hsl(var(--background));
+  box-shadow: inset 0 3px hsl(var(--field-accent) / .72);
+  text-align: left; transition: border-color .12s;
+}
+.datagram-field[data-field-tone="1"] { --field-hue: 266; --field-saturation: 60%; }
+.datagram-field[data-field-tone="2"] { --field-hue: 164; --field-saturation: 60%; --field-ink: var(--field-hue) var(--field-saturation) 25%; }
+.datagram-field[data-field-tone="3"] { --field-hue: 35; --field-saturation: 75%; --field-ink: var(--field-hue) var(--field-saturation) 28%; }
+.datagram-field[data-field-tone="4"] { --field-hue: 338; --field-saturation: 62%; }
+.datagram-field[data-field-tone="5"] { --field-hue: 231; --field-saturation: 68%; }
+.dark .datagram-field[data-field-tone] { --field-accent: var(--field-hue) var(--field-saturation) 68%; --field-ink: var(--field-accent); }
+.datagram-field:not([data-field-tone]) { --field-hue: 220; --field-saturation: 10%; --field-accent: var(--field-hue) var(--field-saturation) 45%; --field-ink: var(--field-hue) var(--field-saturation) 30%; }
+.dark .datagram-field:not([data-field-tone]) { --field-accent: var(--field-hue) var(--field-saturation) 68%; --field-ink: var(--field-hue) var(--field-saturation) 78%; }
+.datagram-field:hover, .datagram-field-active { background: linear-gradient(hsl(var(--field-accent) / .11), hsl(var(--field-accent) / .11)), hsl(var(--background)); }
+.datagram-field[aria-pressed="true"] { border-color: hsl(var(--field-accent)); box-shadow: inset 0 3px hsl(var(--field-accent)), 0 0 0 1px hsl(var(--field-accent) / .2); }
+.datagram-field-pin { flex: none; width: 12px; height: 12px; color: hsl(var(--field-ink)); }
+.datagram-field-meta { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; flex: none; }
+.datagram-field-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: hsl(var(--foreground) / .68); font: 11px "Cascadia Code", Consolas, monospace; }
+.datagram-offset::before { content: "@"; opacity: .65; padding-right: 2px; }
+.datagram-field-name { min-width: 0; color: hsl(var(--foreground)); font-size: 13px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.datagram-field-hex, .datagram-field-dec { display: block; min-width: 0; font-family: "Cascadia Code", Consolas, monospace; overflow-wrap: anywhere; word-break: break-word; }
+.datagram-value-label { margin-right: 8px; color: hsl(var(--muted-foreground)); font: 10px "Cascadia Code", Consolas, monospace; letter-spacing: .04em; }
+.datagram-field-hex { margin-top: 2px; color: hsl(var(--foreground)); font-size: 16px; font-weight: 650; line-height: 1.5; }
+.datagram-field-hex .datagram-value-label { font-weight: 400; }
+.datagram-field .datagram-value-label { color: hsl(var(--foreground) / .68); }
+.datagram-field-dec { color: hsl(var(--foreground) / .73); font-size: 11px; line-height: 1.5; }
+.datagram-field-dec-long { font-size: 11px; }
+.datagram-field-dec-long .datagram-value-label { display: block; margin: 0 0 3px; }
+.datagram-dictionary { align-self: flex-start; max-width: 100%; margin-top: 1px; padding: 3px 7px; border: 1px solid hsl(var(--field-accent) / .13); border-radius: 4px; background: hsl(var(--field-accent) / .075); color: hsl(var(--field-ink)); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.datagram-incomplete, .datagram-empty-field { color: hsl(var(--foreground) / .75); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.datagram-expand { color: hsl(var(--field-ink)); font-size: 11px; margin-top: 2px; }
+.datagram-record { padding: 10px; border: 1px solid hsl(var(--border)); border-radius: 5px; background: hsl(var(--muted) / .3); }
+.datagram-record-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 9px; }
+.datagram-record-heading > span { flex: none; color: hsl(var(--muted-foreground)); font: 11px "Cascadia Code", Consolas, monospace; }
+.datagram-record-title { min-width: 0; font-size: 12px; font-weight: 550; overflow-wrap: anywhere; }
+.datagram-record-title span { margin-left: 10px; color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 400; }
+.datagram-record-title .datagram-record-number { display: inline-flex; align-items: center; justify-content: center; min-width: 23px; min-height: 22px; margin: 0 0 0 8px; padding: 2px 5px; border: 1px solid hsl(var(--border)); border-radius: 4px; background: hsl(var(--background)); color: hsl(var(--foreground) / .8); font: 600 11px "Cascadia Code", Consolas, monospace; }
+.datagram-inspector { flex: none; max-height: 30vh; overflow-y: auto; padding: 10px 30px 15px; border-top: 1px solid hsl(var(--border)); background: hsl(var(--muted) / .45); }
+.datagram-inspector-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; font-size: 12px; }
+.datagram-inspector-heading > svg { color: hsl(var(--muted-foreground)); }
+.datagram-inspector-heading strong { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.datagram-inspector-heading > span { color: hsl(var(--muted-foreground)); font-size: 11px; }
+.datagram-inspector-heading button { margin-left: auto; flex: none; width: 28px; height: 28px; }
+.datagram-inspector-values { display: flex; flex-wrap: wrap; align-items: baseline; gap: 9px 28px; margin-top: 3px; }
+.datagram-inspector-values > div { min-width: 0; max-width: 100%; font-size: 12px; overflow-wrap: anywhere; }
+.datagram-inspector-values code { font: 12px/1.7 "Cascadia Code", Consolas, monospace; overflow-wrap: anywhere; }
+.datagram-loading { padding: 70px 20px; color: hsl(var(--muted-foreground)); font-size: 13px; text-align: center; }
+.datagram-error { padding: 20px; border: 1px solid hsl(var(--destructive) / .3); border-radius: 6px; background: hsl(var(--destructive) / .06); color: hsl(var(--destructive)); font-size: 13px; overflow-wrap: anywhere; }
+.datagram-detail button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+@media (min-width: 1600px) {
+  .datagram-scroll { padding-right: 48px; padding-left: 48px; }
+  .datagram-field-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+@media (max-width: 700px) {
+  .datagram-toolbar { gap: 7px; min-height: 54px; padding: 8px 10px; }
+  .datagram-toolbar h2 { font-size: 14px; }
+  .datagram-summary { display: none; }
+  .datagram-actions { gap: 4px; }
+  .datagram-actions button { width: 32px; padding: 0; }
+  .datagram-actions button > span { display: none; }
+  .datagram-scroll { padding: 16px 12px 22px; }
+  .datagram-protocol-line { gap: 8px; }
+  .datagram-protocol-line h3 { font-size: 17px; }
+  .datagram-protocol-line time { margin-left: 0; flex-basis: 100%; font-size: 11px; }
+  .datagram-route { font-size: 11px; gap: 6px; line-height: 1.5; }
+  .datagram-section-heading { gap: 8px; padding: 10px 11px; }
+  .datagram-section-title { flex: 0 1 auto; }
+  .datagram-section-count { padding: 1px 4px; font-size: 10px; }
+  .datagram-section-range { font-size: 10px; }
+  .datagram-section-range strong { font-size: 11px; }
+  .datagram-section-content { padding: 10px; gap: 10px; }
+  .datagram-field-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 145px), 1fr)); gap: 7px; }
+  .datagram-field { padding: 11px 10px 9px; }
+  .datagram-record { padding: 8px; }
+  .datagram-inspector { padding: 9px 14px 12px; max-height: 35vh; }
+}
+@media (prefers-reduced-motion: reduce) { .datagram-field { transition: none; } }

@@ -1,0 +1,21 @@
+.traffic-charts {
+  --traffic-received: #0284c7;
+  --traffic-sent: #059669;
+}
+.dark .traffic-charts {
+  --traffic-received: #38bdf8;
+  --traffic-sent: #34d399;
+}
+.traffic-received { background-color: var(--traffic-received); fill: var(--traffic-received); }
+.traffic-sent { background-color: var(--traffic-sent); fill: var(--traffic-sent); }
+.traffic-received-text { color: var(--traffic-received); }
+.traffic-sent-text { color: var(--traffic-sent); }
+.traffic-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.traffic-trend { width: 100%; height: auto; display: block; overflow: visible; }
+.traffic-grid { stroke: hsl(var(--border)); stroke-dasharray: 3 4; }
+.traffic-axis { fill: hsl(var(--muted-foreground)); font-size: 12px; font-variant-numeric: tabular-nums; }
+.traffic-line { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.traffic-line-received { stroke: var(--traffic-received); }
+.traffic-line-sent { stroke: var(--traffic-sent); stroke-dasharray: 5 3; }
+.traffic-guide { stroke: hsl(var(--muted-foreground)); stroke-dasharray: 3 3; }
+.traffic-hit:focus { outline: none; stroke: hsl(var(--ring)); stroke-width: 1; }

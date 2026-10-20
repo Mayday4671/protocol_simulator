@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<simterm-import>
+  <system name="UDCP" description="UDCP 1.0 物联网设备通信协议（18B 公共头含 2B Session 认证 + 13 个业务报文）">
+    <header enabled="true">
+      <field name="帧头" len="2" enc="hex" value="55 AA"/>
+      <field name="版本号" len="1" enc="hex" value="01"/>
+      <field name="消息类型" len="1" enc="hex" value="01" dict="msg_type"/>
+      <field name="标志位" len="1" enc="hex" value="00"/>
+      <field name="保留" len="1" enc="hex" value="00"/>
+      <field name="报文总长" len="2" enc="hex" value="{tlen}"/>
+      <field name="序号" len="4" enc="hex" value="{seq}"/>
+      <field name="源设备ID" len="2" enc="hex" value="{node_id}" role="src_id"/>
+      <field name="目标设备ID" len="2" enc="hex" value="00 01" role="dst_id"/>
+      <field name="Session" len="2" enc="hex" value="{session}" role="session"/>
+    </header>
+    <dict key="msg_type" name="消息类型" byte-len="1">
+      <item value="01" label="注册请求"/>
+      <item value="02" label="注册应答"/>
+      <item value="03" label="配置请求"/>
+      <item value="04" label="配置应答"/>
+      <item value="05" label="状态上报"/>
+      <item value="06" label="状态应答"/>
+      <item value="07" label="心跳"/>
+      <item value="08" label="心跳应答"/>
+      <item value="09" label="数据传输"/>
+      <item value="0A" label="数据确认"/>
+      <item value="0C" label="设备信息上报"/>
+      <item value="0D" label="设备信息应答"/>
+    </dict>
+    <dict key="reg_result" name="注册结果" byte-len="1">
+      <item value="00" label="成功"/>
+      <item value="01" label="未知设备"/>
+      <item value="02" label="参数错误"/>
+      <item value="03" label="设备已注册"/>
+      <item value="04" label="服务端忙"/>
+      <item value="05" label="版本不支持"/>
+      <item value="06" label="认证失败"/>
+    </dict>
+    <dict key="cfg_result" name="配置结果" byte-len="1">
+      <item value="00" label="配置成功"/>
+      <item value="01" label="配置失败"/>
+    </dict>
+    <dict key="device_status" name="设备状态" byte-len="1">
+      <item value="00" label="未知"/>
+      <item value="01" label="正常"/>
+      <item value="02" label="警告"/>
+      <item value="03" label="故障"/>
+      <item value="04" label="维护"/>
+    </dict>
+    <dict key="device_type" name="设备类型" byte-len="2">
+      <item value="0001" label="普通终端"/>
+      <item value="0002" label="通信设备"/>
+      <item value="0003" label="网关"/>
+      <item value="0004" label="控制设备"/>
+      <item value="0005" label="服务器"/>
+      <item value="FFFF" label="其他"/>
+    </dict>
+    <dict key="work_mode" name="工作模式" byte-len="1">
+      <item value="00" label="待机"/>
+      <item value="01" label="正常工作"/>
+      <item value="02" label="调试"/>
+      <item value="03" label="维护"/>
+    </dict>
+    <dict key="data_type" name="数据类型" byte-len="1">
+      <item value="01" label="二进制"/>
+      <item value="02" label="文本"/>
+      <item value="03" label="JSON"/>
+      <item value="04" label="控制数据"/>
+      <item value="05" label="文件数据"/>
+      <item value="06" label="音频"/>
+      <item value="07" label="视频"/>
+      <item value="08" label="自定义"/>
+    </dict>
+    <dict key="device_sn" name="设备档案" byte-len="8">
+      <item value="534E303030303031" label="SN000001"/>
+      <item value="534E303030303032" label="SN000002"/>
+      <item value="534E303030303033" label="SN000003"/>
+      <item value="534E303030303034" label="SN000004"/>
+      <item value="534E303030303035" label="SN000005"/>
+    </dict>
+    <dict key="op_type" name="操作类型" byte-len="1">
+      <item value="01" label="新增设备"/>
+      <item value="02" label="删除设备"/>
+    </dict>
+    <group name="注册管理">
+      <protocol id="udcp_reg_req" name="注册请求" type="Request" match="^55AA0101" auto-respond="udcp_reg_resp" delay="100" description="设备上电后向服务端注册 (TYPE=0x01, 总长 30B); 序列号默认 SN000001">
+        <field name="消息类型" len="1" enc="hex" value="01" dict="msg_type"/>
+        <field name="设备类型" len="2" enc="hex" value="00 01" dict="device_type"/>
+        <field name="设备版本" len="2" enc="hex" value="00 01"/>
+        <field name="软件版本" len="2" enc="hex" value="00 01"/>
+        <field name="序列号" len="8" enc="hex" value="53 4E 30 30 30 30 30 31" role="device_sn"/>
+      </protocol>
+      <protocol id="udcp_reg_resp" name="注册应答" type="Response" match="^55AA0102" description="服务端对注册请求的应答 (TYPE=0x02, 总长 22B); 设备侧将其设为入网等待协议">
+        <field name="消息类型" len="1" enc="hex" value="02" dict="msg_type"/>
+        <field name="目标设备ID" len="2" enc="hex" value="{req:源设备ID}"/>
+        <field name="注册结果" len="1" enc="hex" value="00" dict="reg_result" role="result"/>
+        <field name="分配设备ID" len="2" enc="hex" value="10 01" role="dst_id"/>
+        <field name="Session" len="2" enc="hex" value="{random}" role="session"/>
+        <field name="心跳周期" len="2" enc="hex" value="00 0A"/>
+        <field name="预留" len="1" enc="hex" value="00"/>
+      </protocol>
+      <protocol id="udcp_cfg_req" name="配置请求" type="Request" match="^55AA0103" auto-respond="udcp_cfg_resp" delay="100" description="服务端向设备下发配置 (TYPE=0x03, 总长 28B)">
+        <field name="消息类型" len="1" enc="hex" value="03" dict="msg_type"/>
+        <field name="目标设备ID" len="2" enc="hex" value="10 01" role="dst_id"/>
+        <field name="服务器IP" len="4" enc="hex" value="7F 00 00 01"/>
+        <field name="服务器端口" len="2" enc="hex" value="13 88"/>
+        <field name="心跳周期" len="2" enc="hex" value="00 0A"/>
+        <field name="上报周期" len="2" enc="hex" value="00 05"/>
+        <field name="工作模式" len="1" enc="hex" value="01" dict="work_mode"/>
+        <field name="预留" len="1" enc="hex" value="00"/>
+      </protocol>
+      <protocol id="udcp_cfg_resp" name="配置应答" type="Response" match="^55AA0104" description="设备对配置请求的应答 (TYPE=0x04, 总长 18B)">
+        <field name="消息类型" len="1" enc="hex" value="04" dict="msg_type"/>
+        <field name="目标设备ID" len="2" enc="hex" value="{req:源设备ID}" role="dst_id"/>
+        <field name="配置结果" len="1" enc="hex" value="00" dict="cfg_result" role="result"/>
+        <field name="预留" len="1" enc="hex" value="00"/>
+      </protocol>
+    </group>
+    <group name="状态维护">
+      <protocol id="udcp_status_report" name="状态上报" type="Event" match="^55AA0105" description="设备周期上报自身状态 (TYPE=0x05, 总长 32B, 不需应答); 温度单位 0.1℃">
+        <field name="消息类型" len="1" enc="hex" value="05" dict="msg_type"/>
+        <field name="设备状态" len="1" enc="hex" value="01" dict="device_status"/>
+        <field name="CPU占用" len="1" enc="hex" value="17"/>
+        <field name="内存占用" len="1" enc="hex" value="2D"/>
+        <field name="温度" len="2" enc="hex" value="01 0C"/>
+        <field name="收包数" len="4" enc="hex" value="00 00 03 E8"/>
+        <field name="发包数" len="4" enc="hex" value="00 00 07 D0"/>
+        <field name="预留" len="3" enc="hex" value="00 00 00"/>
+      </protocol>
+      <protocol id="udcp_status_resp" name="状态应答" type="Response" match="^55AA0106" description="服务端对状态上报的应答 (TYPE=0x06, 纯公共头 16B)">
+        <field name="消息类型" len="1" enc="hex" value="06" dict="msg_type"/>
+        <field name="目标设备ID" len="2" enc="hex" value="{req:源设备ID}" role="dst_id"/>
+      </protocol>
+      <protocol id="udcp_heartbeat" name="心跳" type="Heartbeat" match="^55AA0107" auto-respond="udcp_heartbeat_resp" delay="50" description="设备周期保活 (TYPE=0x07, 总长 24B); 心跳绑定选本协议, 入网成功后自动启动">
+        <field name="消息类型" len="1" enc="hex" value="07" dict="msg_type"/>
+        <field name="运行时长" len="4" enc="hex" value="00 00 02 58"/>
+        <field name="设备状态" len="1" enc="hex" value="01" dict="device_status"/>
+        <field name="预留" len="3" enc="hex" value="00 00 00"/>
+      </protocol>
+      <protocol id="udcp_heartbeat_resp" name="心跳应答" type="Response" match="^55AA0108" description="服务端对心跳的应答 (TYPE=0x08, 纯公共头 16B)">
+        <field name="消息类型" len="1" enc="hex" value="08" dict="msg_type"/>
+        <field name="目标设备ID" len="2" enc="hex" value="{req:源设备ID}" role="dst_id"/>
+      </protocol>
+    </group>
+    <group name="数据传输">
+      <protocol id="udcp_data_on" name="数据传输(需确认)" type="Event" match="^55AA010901" auto-respond="udcp_data_ack" delay="50" description="设备间数据, 标志位=1 需对端确认 (TYPE=0x09, 总长 25B); 默认内容 HELLO">
+        <field name="消息类型" len="1" enc="hex" value="09" dict="msg_type"/>
+        <field name="标志位" len="1" enc="hex" value="01"/>
+        <field name="目标设备ID" len="2" enc="hex" value="10 02" role="dst_id"/>
+        <field name="数据长度" len="2" enc="hex" value="00 05"/>
+        <field name="数据类型" len="1" enc="hex" value="02" dict="data_type"/>
+        <field name="预留" len="1" enc="hex" value="00"/>
+        <field name="数据内容" len="5" enc="hex" value="48 45 4C 4C 4F"/>
+      </protocol>
+      <protocol id="udcp_data_off" name="数据传输(免确认)" type="Event" match="^55AA010900" description="设备间数据, 标志位=0 不需确认 (TYPE=0x09, 总长 25B)">
+        <field name="消息类型" len="1" enc="hex" value="09" dict="msg_type"/>
+        <field name="目标设备ID" len="2" enc="hex" value="10 02" role="dst_id"/>
+        <field name="数据长度" len="2" enc="hex" value="00 05"/>
+        <field name="数据类型" len="1" enc="hex" value="02" dict="data_type"/>
+        <field name="预留" len="1" enc="hex" value="00"/>
+        <field name="数据内容" len="5" enc="hex" value="48 45 4C 4C 4F"/>
+      </protocol>
+      <protocol id="udcp_data_ack" name="数据确认" type="Response" match="^55AA010A" description="对需确认数据的 ACK (TYPE=0x0A, 纯公共头 16B); 序号与目标设备ID 回填自被确认的请求">
+        <field name="消息类型" len="1" enc="hex" value="0A" dict="msg_type"/>
+        <field name="序号" len="4" enc="hex" value="{req:序号}"/>
+        <field name="目标设备ID" len="2" enc="hex" value="{req:源设备ID}" role="dst_id"/>
+      </protocol>
+    </group>
+    <group name="设备配置">
+      <protocol id="udcp_devinfo_req" name="设备配置请求" type="Request" match="^55AA010C" auto-respond="udcp_devinfo_resp" delay="100" description="把一批设备配置到服务端 (TYPE=0x0C, 总长 19+12N 字节); 设备列表变长, 每台记录=序列号8B+类型2B+心跳2B, 由「批量配置设备」生成">
+        <field name="消息类型" len="1" enc="hex" value="0C" dict="msg_type"/>
+        <field name="目标设备ID" len="2" enc="hex" value="00 01"/>
+        <field name="操作类型" len="1" enc="hex" value="01" dict="op_type" role="op_type"/>
+        <field name="设备数量" len="2" enc="hex" value="00 01" role="device_count"/>
+        <field name="设备列表" len="12" enc="hex" value="{vlen}" role="device_list">
+          <unit name="序列号" len="8" enc="hex" value="" dict="device_sn" role="device_sn"/>
+          <unit name="设备类型" len="2" enc="hex" value="" dict="device_type"/>
+          <unit name="心跳周期" len="2" enc="hex" value=""/>
+        </field>
+      </protocol>
+      <protocol id="udcp_devinfo_resp" name="设备配置应答" type="Response" match="^55AA010D" description="服务端对设备配置的应答 (TYPE=0x0D, 总长 21B); 应答结果=成功时, 本批设备自动同步设备档案（新增入库/删除移除）">
+        <field name="消息类型" len="1" enc="hex" value="0D" dict="msg_type"/>
+        <field name="目标设备ID" len="2" enc="hex" value="{req:源设备ID}" role="dst_id"/>
+        <field name="序号" len="4" enc="hex" value="{req:序号}"/>
+        <field name="操作类型" len="1" enc="hex" value="{req:操作类型}" dict="op_type" role="op_type"/>
+        <field name="配置数量" len="2" enc="hex" value="{req:设备数量}" role="device_count"/>
+        <field name="应答结果" len="1" enc="hex" value="00" dict="cfg_result" role="result"/>
+        <field name="预留" len="1" enc="hex" value="00"/>
+      </protocol>
+    </group>
+  </system>
+</simterm-import>
