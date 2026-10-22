@@ -515,10 +515,12 @@ pub async fn insert_log(
     raw_text: Option<&str>,
     parsed: Option<&str>,
     status: &str,
+    send_after_log_id: Option<i64>,
+    ts: &str,
 ) -> AppResult<i64> {
     let result = sqlx::query(
-        "INSERT INTO logs (direction, node_ref, local_addr, remote_addr, protocol_id, raw_hex, raw_text, parsed, status)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO logs (direction, node_ref, local_addr, remote_addr, protocol_id, raw_hex, raw_text, parsed, status, send_after_log_id, ts)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
     )
     .bind(direction)
     .bind(node_id)
@@ -529,6 +531,8 @@ pub async fn insert_log(
     .bind(raw_text)
     .bind(parsed)
     .bind(status)
+    .bind(send_after_log_id)
+    .bind(ts)
     .execute(pool)
     .await?;
     Ok(result.last_insert_rowid())

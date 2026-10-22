@@ -1,0 +1,20 @@
+.flow-drawer-launcher{position:fixed;right:0;top:calc(50% + 17px);transform:translateY(-50%);z-index:35;display:flex;flex-direction:column;align-items:center;gap:9px;width:32px;padding:12px 4px;background:hsl(var(--card));color:hsl(var(--foreground));border:1px solid hsl(var(--border));border-right:0;border-radius:8px 0 0 8px;box-shadow:-2px 2px 8px #0000000a}
+.flow-drawer-launcher>span:not(.flow-drawer-running){writing-mode:vertical-rl;letter-spacing:2px;font-size:12px}
+.flow-drawer-launcher:hover{background:hsl(var(--accent))}.flow-drawer-running{width:6px;height:6px;border-radius:50%;background:#0284c7}
+.flow-drawer{position:fixed;right:0;top:46px;bottom:12px;z-index:40;width:380px;max-width:calc(100vw - 32px);display:flex;flex-direction:column;background:hsl(var(--card));color:hsl(var(--foreground));border:1px solid hsl(var(--border));border-right:0;border-radius:10px 0 0 10px;box-shadow:-10px 4px 30px #00000014;animation:flow-drawer-in .18s ease-out}
+.flow-drawer-heading{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 18px;border-bottom:1px solid hsl(var(--border));flex-shrink:0}.flow-drawer-heading h2{font-size:14px;font-weight:600;margin-right:auto}
+.flow-drawer-controls{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-bottom:1px solid hsl(var(--border));flex-shrink:0}.flow-drawer-controls .flow-select{width:100%;max-width:none;min-width:0}.flow-drawer-controls .flex>button{flex:1}
+.flow-drawer-subhead{display:flex;justify-content:space-between;padding:12px 18px 4px;font-size:11px;color:hsl(var(--muted-foreground))}.flow-drawer-subhead label{display:flex;align-items:center;gap:5px}.flow-drawer-empty{padding:32px 18px;font-size:13px;text-align:center;color:hsl(var(--muted-foreground))}
+.flow-timeline{list-style:none;margin:0;padding:20px 18px 24px 24px;overflow:auto;min-height:0;flex:1;overscroll-behavior:contain}
+.flow-timeline-step{position:relative;padding:0 0 25px 26px;border-left:1px solid hsl(var(--border));margin-left:6px}.flow-timeline-step:last-child{border-left-color:transparent;padding-bottom:0}
+.flow-timeline-dot{position:absolute;left:-9px;top:2px;width:17px;height:21px;justify-content:center;background:hsl(var(--card))}.flow-timeline-dot.state-pending svg{width:10px;height:10px}
+.flow-timeline-summary{display:block;text-align:left;width:100%;border-radius:4px}.flow-timeline-summary:hover{background:hsl(var(--muted)/.5)}
+.flow-timeline-title{display:flex;align-items:flex-start;gap:7px;font-size:13px;line-height:1.6}.flow-timeline-title strong{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:600}.flow-timeline-title>.flow-status{padding-top:1px;font-size:11px}.flow-timeline-title>svg{flex-shrink:0;margin-top:4px;color:hsl(var(--muted-foreground))}
+.flow-timeline-protocol{display:block;margin-top:4px;font-size:11px;line-height:1.6;color:hsl(var(--muted-foreground));overflow-wrap:anywhere}.flow-timeline-meta{display:flex;gap:10px;margin-top:6px;font-size:11px;color:hsl(var(--muted-foreground));font-variant-numeric:tabular-nums}
+.flow-timeline-step[aria-current=step]>.flow-timeline-summary{background:hsl(var(--muted)/.6);outline:5px solid hsl(var(--muted)/.6)}
+.flow-timeline-events{margin-top:12px;padding:0 0 0 9px;border-left:2px solid hsl(var(--border))}.flow-timeline-event{padding:8px 0;border-top:1px solid hsl(var(--border))}.flow-timeline-event:first-child{border-top:0;padding-top:0}
+.flow-drawer button:focus-visible{outline:2px solid hsl(var(--ring));outline-offset:2px}.flow-drawer-launcher:focus-visible{outline:2px solid hsl(var(--ring));outline-offset:-3px}
+@keyframes flow-drawer-in{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.flow-drawer{animation:none}}
+
+.flow-drawer-collapse{position:absolute;left:-25px;top:50%;transform:translateY(-50%);width:25px;height:56px;display:flex;align-items:center;justify-content:center;background:hsl(var(--card));color:hsl(var(--foreground));border:1px solid hsl(var(--border));border-right:0;border-radius:7px 0 0 7px;box-shadow:-3px 2px 8px #0000000a}.flow-drawer-collapse:hover{background:hsl(var(--accent))}

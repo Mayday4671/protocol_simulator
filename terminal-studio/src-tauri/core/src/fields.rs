@@ -785,6 +785,23 @@ mod tests {
     }
 
     #[test]
+    fn array_parameter_variables_keep_each_child_width() {
+        let fields = vec![
+            fu("count", 1, "02", FieldRole::DeviceCount, &[]),
+            fu("items", 13, "", FieldRole::DeviceList,
+                &[("address", 3), ("serial", 4), ("ip", 4), ("port", 2)]),
+        ];
+        let params = HashMap::from([("items".into(),
+            "{seq:3}{seq:4}7F0000012328{seq:3}{seq:4}7F0000022329".into())]);
+        let n = node();
+        let dicts = DictMap::new();
+        let bytes = render_fields(&fields, &RenderCtx::new(&n, 0x123, &params, &dicts)).unwrap();
+        assert_eq!(hex::encode_upper(bytes), "02000123000001237F0000012328000123000001237F0000022329");
+        let bad = HashMap::from([("items".into(), "{seq:13}".into())]);
+        assert!(render_fields(&fields, &RenderCtx::new(&n, 1, &bad, &dicts)).is_err());
+    }
+
+    #[test]
     fn dynamic_array_defaults_follow_nearest_active_count() {
         let fields: Vec<ProtocolField> = serde_json::from_value(serde_json::json!([
             {"name":"mode","len":1,"enc":"hex","value":"01"},

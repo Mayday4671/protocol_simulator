@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   Pencil,
+  Eye,
   Plus,
   Search,
   Trash2,
@@ -152,9 +153,8 @@ function PropertyDetails({
           </div>
         </div>
       ))}
-      {!sections.length && (
-        <span className="text-sm text-muted-foreground">暂无配置属性</span>
-      )}
+      <div className="grid gap-3 md:grid-cols-3">{Object.entries(properties).filter(([key]) => !sections.some(s => s.saved.some(f => f.profile_key?.trim() === key))).map(([key,value]) => <div key={key}><div className="text-xs text-muted-foreground mb-1">{key}</div><div className="font-mono text-sm break-all">{value}</div></div>)}</div>
+      {!Object.keys(properties).length && <span className="text-sm text-muted-foreground">暂无配置属性</span>}
     </div>
   );
 }
@@ -773,10 +773,10 @@ export function TerminalProfiles() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        aria-label={`编辑设备：${t.name}`}
-                        onClick={() => edit(t)}
+                        aria-label={`${eligible.some(p => p.system_ref === t.system_ref) ? "编辑" : "查看"}设备：${t.name}`}
+                        onClick={() => eligible.some(p => p.system_ref === t.system_ref) ? edit(t) : setExpanded(old => { const next = new Set(old); next.has(t.id) ? next.delete(t.id) : next.add(t.id); return next; })}
                       >
-                        <Pencil className="h-4 w-4" />
+                        {eligible.some(p => p.system_ref === t.system_ref) ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                       <Button
                         variant="ghost"

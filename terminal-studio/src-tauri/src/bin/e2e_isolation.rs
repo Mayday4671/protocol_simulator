@@ -53,7 +53,7 @@ async fn main() {
     heartbeat::start_periodic_send_with_params(handle.clone(),pool.clone(),engine.clone(),1,"biz_a",100,HashMap::from([("__device_key".into(),"01".into())])).await.unwrap();
     let (n,_)=tokio::time::timeout(Duration::from_secs(2),peer.recv_from(&mut buffer)).await.unwrap().unwrap();
     assert_eq!(&buffer[..n],&[0x11,1,0xD1,0xD2]);
-    udp::stop_server(&handle,&engine,1);
+    udp::stop_server(&handle,&engine,1).await;
     tokio::time::sleep(Duration::from_millis(150)).await;
     assert!(engine.periodic.is_empty() && engine.sockets.is_empty());
     println!("PASS: real UDP A/B registration, unregistered terminal, cross-system isolation, switch back, fresh periodic session, stop cleanup");

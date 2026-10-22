@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   ReactFlow,
@@ -16,7 +16,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { CircleStop, GitBranch, Play, Plus, Save, Trash2, Workflow } from "lucide-react";
+import { GitBranch, Play, Plus, Save, Trash2, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { protocolFrame } from "@/lib/deviceProfiles";
 import { Button } from "@/components/ui/button";
@@ -32,8 +32,6 @@ import {
   listFlows,
   upsertFlow,
   deleteFlow,
-  startFlowRun,
-  stopFlowRun,
   listTerminals,
   listProtocols,
   listSystems,
@@ -41,12 +39,12 @@ import {
   listDictSets,
   type FlowRow,
   type FlowStep,
-  type FlowRunEvent,
   type SignalDef,
   type SignalField,
 } from "@/lib/api";
 import { FIELD_ROLE_OPTIONS } from "@/components/protocols/fieldRoles";
-import { listen } from "@tauri-apps/api/event";
+import { FlowTestView } from "@/components/flows/FlowTestView";
+import { FlowMatchEditor } from "@/components/flows/FlowMatchEditor";
 import type { DictSetView, Protocol, ProtocolGroup, ProtocolSystem, TerminalProfile } from "@/types";
 
 /** 出边句柄: 不同分支不同颜色, 连线即分支 */
@@ -248,12 +246,8 @@ export function FlowManager() {
   const [terminals, setTerminals] = useState<TerminalProfile[]>([]);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
-  const [runTerminals, setRunTerminals] = useState<number[]>([]);
-  const [activeRunId, setActiveRunId] = useState<number | null>(null);
-  const [runStatus, setRunStatus] = useState<Record<string, string>>({});
-  const [runLog, setRunLog] = useState<FlowRunEvent[]>([]);
+  const [testing, setTesting] = useState<FlowRow | null>(null);
   const [saving, setSaving] = useState(false);
-  const runIdRef = useRef<number | null>(null);
 
   const refreshFlows = useCallback(async () => {
     try {
@@ -281,26 +275,9 @@ export function FlowManager() {
       .then((rows) => {
         const scoped = rows.filter((t) => t.system_ref === draft.system_ref);
         setTerminals(scoped);
-        setRunTerminals(scoped.map((t) => t.id));
       })
       .catch(() => setTerminals([]));
   }, [draft?.system_ref, draft?.id]);
-
-  useEffect(() => {
-    const un = listen<FlowRunEvent>("flow-run", (ev) => {
-      if (ev.payload.run_id !== runIdRef.current) return;
-      const p = ev.payload;
-      setRunLog((log) => [...log.slice(-200), p]);
-      if (p.step_id) setRunStatus((s) => ({ ...s, [p.step_id]: p.status }));
-      if (p.status === "done" || p.status === "error" || p.status === "aborted") {
-        setActiveRunId(null);
-        runIdRef.current = null;
-      }
-    });
-    return () => {
-      void un.then((f) => f());
-    };
-  }, []);
 
   const protoName = useCallback(
     (pid?: string | null) =>
@@ -366,13 +343,6 @@ export function FlowManager() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, protoName, selectedStepId]);
-
-  // 运行状态 → 节点高亮(成功绿/失败红/超时黄/执行中蓝)
-  useEffect(() => {
-    setNodes((ns) =>
-      ns.map((n) => ({ ...n, data: { ...n.data, status: runStatus[n.id] ?? undefined } })),
-    );
-  }, [runStatus, setNodes]);
 
   const patchStep = useCallback(
     (id: string, patch: Partial<FlowStep>) => {
@@ -473,39 +443,13 @@ export function FlowManager() {
         trigger_protocols: draft.trigger_protocols,
         schedule_interval_ms: draft.schedule_interval_ms,
       });
-      setDraft({ ...draft, id: saved.id });
+      setDraft({ ...saved, group_ref: saved.group_ref ?? null, description: saved.description ?? "" });
       toast.success("业务流程已保存");
       await refreshFlows();
     } catch (e) {
       toast.error("保存失败", { description: String(e) });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const run = async () => {
-    if (!draft?.id) return toast.error("请先保存流程再运行");
-    setRunStatus({});
-    setRunLog([]);
-    try {
-      const runId = await startFlowRun(draft.id, runTerminals);
-      runIdRef.current = runId;
-      setActiveRunId(runId);
-      toast.success(`流程「${draft.name}」开始运行`);
-    } catch (e) {
-      toast.error("运行失败", { description: String(e) });
-    }
-  };
-
-  const stop = async () => {
-    if (activeRunId == null) return;
-    try {
-      await stopFlowRun(activeRunId);
-      setActiveRunId(null);
-      runIdRef.current = null;
-      toast.info("已停止流程运行");
-    } catch (e) {
-      toast.error(String(e));
     }
   };
 
@@ -516,10 +460,6 @@ export function FlowManager() {
       f.steps.length && f.steps.every((st) => !st.x && !st.y)
         ? f.steps.map((st, i) => ({ ...st, x: 360, y: 60 + i * 175 }))
         : f.steps;
-    setActiveRunId(null);
-    runIdRef.current = null;
-    setRunStatus({});
-    setRunLog([]);
     setDraft({
       id: f.id,
       name: f.name,
@@ -549,6 +489,8 @@ export function FlowManager() {
     if (!selectedStep) return;
     patchStep(selectedStep.id, { [field]: value || null } as Partial<FlowStep>);
   };
+
+  if (testing) return <div className="h-full min-h-0 p-4"><FlowTestView key={testing.id} flow={testing} protocols={protocols} groups={groups} onBack={()=>setTesting(null)}/></div>;
 
   return (
     <div className="flex h-full min-h-0 p-5">
@@ -647,37 +589,10 @@ export function FlowManager() {
               <Button size="sm" variant="outline" onClick={save} disabled={saving}>
                 <Save /> 保存
               </Button>
-              <div className="ml-auto flex items-center gap-2">
-                {terminals.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    aria-pressed={runTerminals.includes(t.id)}
-                    onClick={() =>
-                      setRunTerminals((ids) =>
-                        ids.includes(t.id) ? ids.filter((x) => x !== t.id) : [...ids, t.id],
-                      )
-                    }
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-xs transition-colors",
-                      runTerminals.includes(t.id)
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:border-primary/50",
-                    )}
-                  >
-                    {t.name}
-                  </button>
-                ))}
-                {activeRunId != null ? (
-                  <Button size="sm" variant="destructive" onClick={stop}>
-                    <CircleStop /> 停止运行
-                  </Button>
-                ) : (
-                  <Button size="sm" onClick={run} disabled={!draft.id || !runTerminals.length}>
-                    <Play /> 运行
-                  </Button>
-                )}
-              </div>
+              <Button className="ml-auto" size="sm" disabled={!draft.id || saving} onClick={async()=>{
+                try { const saved = await upsertFlow({ ...draft }); setDraft({ ...saved, group_ref:saved.group_ref??null, description:saved.description??"" }); setTesting(saved); await refreshFlows(); }
+                catch(e){toast.error("保存流程失败",{description:String(e)});}
+              }}><Play/>测试流程</Button>
             </>
           ) : (
             <p className="px-1 py-1 text-sm text-muted-foreground">
@@ -811,7 +726,7 @@ export function FlowManager() {
                 />
               </label>
               <div className="grid gap-1 text-xs">
-                <span>发送信令{selectedStep.protocol_id ? "" : selectedStep.request_def ? "(内嵌定义, 保存自动入协议库)" : ""}</span>
+                <span>{selectedStep.action === "receive" ? "接收信令" : "发送信令"}{selectedStep.protocol_id ? "" : selectedStep.request_def ? "(内嵌定义, 保存自动入协议库)" : ""}</span>
                 {selectedStep.request_def && !selectedStep.protocol_id ? (
                   <div className="space-y-1.5">
                     <SignalDefEditor
@@ -840,7 +755,7 @@ export function FlowManager() {
                     </UXSelectTrigger>
                     <UXSelectContent>
                       <UXSelectItem value="__inline__">＋ 内嵌定义新信令…</UXSelectItem>
-                      {sendProtocols.map((p) => (
+                      {protocols.filter(p=>p.system_ref===draft?.system_ref).map((p) => (
                         <UXSelectItem key={p.protocol_id} value={p.protocol_id}>
                           {p.name}
                         </UXSelectItem>
@@ -849,6 +764,7 @@ export function FlowManager() {
                   </UXSelect>
                 )}
               </div>
+              <FlowMatchEditor step={selectedStep} protocols={protocols} groups={groups} patch={p=>patchStep(selectedStep.id,p)}/>
               <div className="grid grid-cols-2 gap-2">
                 <label className="grid gap-1 text-xs">
                   设备模式
@@ -1083,43 +999,8 @@ export function FlowManager() {
             </div>
           )}
         </div>
-        <div className="h-56 shrink-0 overflow-y-auto rounded-xl border bg-card p-2 text-xs">
-          <p className="mb-1 px-1 font-medium">运行日志</p>
-          {!runLog.length && (
-            <p className="px-1 text-muted-foreground">点击「运行」后, 步骤执行轨迹实时显示在这里</p>
-          )}
-          {runLog.map((l, i) => (
-            <p
-              key={i}
-              className={cn(
-                "border-b py-1",
-                l.status === "success" && "text-emerald-600",
-                l.status === "failure" && "text-red-600",
-                l.status === "timeout" && "text-amber-600",
-                l.status === "running" && "text-sky-600",
-              )}
-            >
-              {l.step_name || l.flow_name || "流程"}
-              {l.terminal ? ` · ${l.terminal}` : ""} — {statusText(l.status)}
-              {l.note ? ` · ${l.note}` : ""}
-            </p>
-          ))}
-        </div>
+
       </div>
     </div>
   );
-}
-
-function statusText(s: string) {
-  return (
-    {
-      running: "执行中",
-      success: "成功",
-      failure: "失败",
-      timeout: "超时",
-      done: "完成",
-      aborted: "已中止",
-      error: "出错",
-    } as Record<string, string>
-  )[s] ?? s;
 }

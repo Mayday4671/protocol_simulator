@@ -31,7 +31,7 @@ pub async fn update_node(
     // 若节点正处于监听状态, 用新配置重启监听使端口变更生效
     let was_running = state.engine.sockets.contains_key(&id);
     if was_running {
-        udp::stop_server(&app, &state.engine, id);
+        udp::stop_server(&app, &state.engine, id).await;
         udp::ensure_server(&app, &state.pool, &state.engine, &node).await?;
     }
     Ok(node)
@@ -39,7 +39,7 @@ pub async fn update_node(
 
 #[tauri::command]
 pub async fn delete_node(app: AppHandle, state: State<'_, AppState>, id: i64) -> AppResult<()> {
-    udp::stop_server(&app, &state.engine, id);
+    udp::stop_server(&app, &state.engine, id).await;
     db::delete_node(&state.pool, id).await
 }
 

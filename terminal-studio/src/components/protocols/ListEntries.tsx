@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/select";
 import { useEffect, useRef, useState } from "react";
 import type { ProtocolField, DictSetView } from "@/types";
-import { Input } from "@/components/ui/input";
+import { FieldValueEditor } from "@/components/protocols/FieldValueEditor";
 import {
   encodeListEntries,
   initialListEntries,
@@ -164,11 +164,12 @@ export function ListEntries({
                       </UXSelectContent>
                     </UXSelect>
                   ) : (
-                    <Input
-                      aria-label={`${field.name} 第${i + 1}条 ${u.name}`}
-                      className="h-8 font-mono text-xs"
+                    <FieldValueEditor
+                      label={`${field.name} 第${i + 1}条 ${u.name}`}
+                      enc={u.enc}
+                      allowedSources={u.enc === "ascii" ? ["fixed"] : ["fixed", "seq", "session", "tlen", "timestamp", "timestamp_ms"]}
                       value={r[u.name] ?? ""}
-                      onChange={(e) => update(i, u.name, e.target.value)}
+                      onChange={(value) => update(i, u.name, value)}
                     />
                   )}
                 </label>

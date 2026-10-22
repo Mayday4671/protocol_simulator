@@ -3,6 +3,8 @@ use serde::{Serialize, Serializer};
 /// 统一错误类型：实现 Serialize 后可直接作为 Tauri command 的 Err 返回给前端
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error("JSON 错误: {0}")]
+    Json(#[from] serde_json::Error),
     #[error("数据库错误: {0}")]
     Db(#[from] sqlx::Error),
 

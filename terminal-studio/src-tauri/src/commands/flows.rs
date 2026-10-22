@@ -145,7 +145,8 @@ pub async fn upsert_flow(pool: tauri::State<'_, AppState>, payload: FlowPayload)
 
 #[tauri::command]
 pub async fn delete_flow(state: State<'_, AppState>, id: i64) -> AppResult<()> {
-    state.engine.flow_runs.retain(|_, v| v.0 != id);
+    let runs: Vec<i64> = state.engine.flow_runs.iter().filter(|r|r.value().0==id).map(|r|*r.key()).collect();
+    for run in runs { flow::stop_run(&state.engine,run); }
     sqlx::query("DELETE FROM business_flows WHERE id=?")
         .bind(id)
         .execute(&state.pool)
@@ -159,8 +160,15 @@ pub async fn start_flow_run<R: Runtime>(
     state: State<'_, AppState>,
     flow_id: i64,
     terminal_ids: Vec<i64>,
+    node_id: Option<i64>,
+    manual: Option<bool>,
 ) -> AppResult<i64> {
-    flow::start_flow(app, state.pool.clone(), state.engine.clone(), flow_id, terminal_ids).await
+    crate::engine::flow_trace::start(app, state.pool.clone(), state.engine.clone(), flow_id, terminal_ids, node_id, manual.unwrap_or(false)).await
+}
+
+#[tauri::command]
+pub fn flow_traces(state: State<'_, AppState>, flow_id: i64) -> Vec<crate::engine::flow_trace::FlowTrace> {
+    crate::engine::flow_trace::traces(&state.engine,flow_id)
 }
 
 #[tauri::command]

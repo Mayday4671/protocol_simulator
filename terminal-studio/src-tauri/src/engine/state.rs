@@ -44,6 +44,8 @@ pub struct EngineState {
     /// node_id -> 待入网状态
     pub pending_logins: DashMap<i64, PendingLogin>,
     pub pending_configs: DashMap<crate::devices::ConfigKey, crate::devices::PendingConfig>,
+    pub used_save_sequences: tokio::sync::Mutex<std::collections::HashSet<String>>,
+    pub pending_saves: tokio::sync::Mutex<crate::business::PendingSaves>,
     pub applied_configs: tokio::sync::Mutex<std::collections::HashMap<(i64, i64, String), Instant>>,
     /// node_id -> 自增序号（{seq} 变量）
     seq_counters: DashMap<i64, u64>,
@@ -51,6 +53,8 @@ pub struct EngineState {
     pub regex_cache: RegexCache,
     /// 业务流程运行: run_id -> (flow_id, node_id, 任务句柄)
     pub flow_runs: DashMap<i64, (i64, i64, tokio::task::JoinHandle<()>)>,
+    pub flow_traces: std::sync::Mutex<std::collections::BTreeMap<i64, super::flow_trace::FlowTrace>>,
+    pub flow_start_lock: tokio::sync::Mutex<()>,
     /// 定时流程的最近运行时刻(节流: 间隔未到不重复启动)
     pub flow_schedule_marks: tokio::sync::Mutex<std::collections::HashMap<String, std::time::Instant>>,
     flow_run_seq: std::sync::atomic::AtomicI64,
@@ -65,10 +69,14 @@ impl EngineState {
             periodic: DashMap::new(),
             pending_logins: DashMap::new(),
             pending_configs: DashMap::new(),
+            used_save_sequences: tokio::sync::Mutex::new(std::collections::HashSet::new()),
+            pending_saves: tokio::sync::Mutex::new(std::collections::BTreeMap::new()),
             applied_configs: tokio::sync::Mutex::new(std::collections::HashMap::new()),
             seq_counters: DashMap::new(),
             regex_cache: RegexCache::new(),
             flow_runs: DashMap::new(),
+            flow_traces: std::sync::Mutex::new(std::collections::BTreeMap::new()),
+            flow_start_lock: tokio::sync::Mutex::new(()),
             flow_schedule_marks: tokio::sync::Mutex::new(std::collections::HashMap::new()),
             flow_run_seq: std::sync::atomic::AtomicI64::new(0),
         }

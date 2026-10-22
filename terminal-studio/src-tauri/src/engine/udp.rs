@@ -110,13 +110,18 @@ pub async fn push_log<R: Runtime>(
     parsed: Option<String>,
     status: &str,
 ) -> AppResult<UdpLogEvent> {
+    push_log_with_boundary(app,pool,direction,node,local_addr,remote_addr,protocol,bytes,parsed,status,None,None).await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn push_log_with_boundary<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, direction: Direction, node: Option<&Node>, local_addr: &str, remote_addr: &str, protocol: Option<&Protocol>, bytes: &[u8], parsed: Option<String>, status: &str, send_after_log_id: Option<i64>, sent_at: Option<String>) -> AppResult<UdpLogEvent> {
     let hex = rules::normalize_hex(bytes);
     let text = String::from_utf8_lossy(bytes).to_string();
     let protocol_id = protocol.map(|p| p.protocol_id.clone());
     let protocol_name = protocol.map(|p| p.name.clone());
     let node_id = node.map(|n| n.id);
     let node_name = node.map(|n| n.name.clone());
-    let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+    let ts = sent_at.unwrap_or_else(||chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string());
 
     let id = db::insert_log(
         pool,
@@ -129,6 +134,8 @@ pub async fn push_log<R: Runtime>(
         Some(text.as_str()),
         parsed.as_deref(),
         status,
+        send_after_log_id,
+        &ts,
     )
     .await?;
 
@@ -190,12 +197,17 @@ pub fn ensure_server<'a, R: Runtime>(
 }
 
 /// 停止节点监听：中止接收任务、释放端口、停掉该节点全部心跳与挂起入网
-pub fn stop_server<R: Runtime>(app: &AppHandle<R>, engine: &EngineState, node_id: i64) {
+pub async fn stop_server<R: Runtime>(app: &AppHandle<R>, engine: &EngineState, node_id: i64) {
+    let _flow_start = engine.flow_start_lock.lock().await;
+    let runs: Vec<i64> = engine.flow_runs.iter().filter(|r|r.value().1==node_id).map(|r|*r.key()).collect();
+    for run in runs { super::flow_trace::stop(engine,run); }
     if let Some((_, h)) = engine.listeners.remove(&node_id) {
         h.abort();
     }
     engine.sockets.remove(&node_id);
     engine.pending_logins.remove(&node_id);
+    engine.used_save_sequences.lock().await.retain(|k| !k.starts_with(&format!("{node_id}|")));
+    engine.pending_saves.lock().await.retain(|k,_| !k.starts_with(&format!("{node_id}|")));
     engine.pending_configs.retain(|k, _| k.node != node_id);
     if let Ok(mut applied) = engine.applied_configs.try_lock() { applied.retain(|(node,_,_),_| *node != node_id); }
     super::heartbeat::stop_node_heartbeats(app, engine, node_id);
@@ -340,10 +352,12 @@ pub async fn send_datagram<R: Runtime>(
         None => resolve_addr(&node.remote_ip, node.remote_port).await?,
     };
     let socket = ensure_server(app, pool, engine, node).await?;
-    let pending = crate::devices::track_config(pool, engine, node, protocol, &all_fields, &bytes, &dicts, dest).await?;
+    let pending = crate::business::track(pool, engine, node, protocol, &all_fields, &bytes, &dicts, dest).await?;
+    let send_after_log_id: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(id),0) FROM logs").fetch_one(pool).await?;
+    let sent_at = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
     let n = match socket.send_to(&bytes, dest).await {
         Ok(n) => n,
-        Err(e) => { if let Some(key) = pending { engine.pending_configs.remove(&key); } return Err(e.into()); }
+        Err(e) => { if let Some(key) = pending { engine.pending_saves.lock().await.remove(&key); } return Err(e.into()); }
     };
     let hex = rules::normalize_hex(&bytes);
     let local = socket
@@ -351,7 +365,7 @@ pub async fn send_datagram<R: Runtime>(
         .map(|a| a.to_string())
         .unwrap_or_else(|_| format!("{}:{}", node.local_ip, node.local_port));
 
-    push_log(
+    let sent = push_log_with_boundary(
         app,
         pool,
         Direction::Out,
@@ -362,9 +376,11 @@ pub async fn send_datagram<R: Runtime>(
         &bytes,
         None,
         "sent",
+        Some(send_after_log_id),
+        Some(sent_at),
     )
     .await?;
-    Ok(SendResult { bytes: n, hex })
+    Ok(SendResult { bytes: n, hex, log_id: sent.id })
 }
 
 /// 接收循环：持续 recv_from 并交给规则引擎处理
@@ -445,7 +461,7 @@ async fn process_incoming<R: Runtime>(
         // 信令类型码(role=信令类型)自动并入断言: 身份码进协议数据, 收包按码识别;
         // 无信令类型且无手写断言的协议无从识别, 不参与匹配
         let conds = rules::effective_conds(&frame, &cand.match_conds());
-        if conds.is_empty() {
+        if conds.is_empty() && !cand.match_rule.as_deref().is_some_and(|rule| !rule.trim().is_empty()) {
             continue;
         }
         if !rules::check_match_conds(&frame, &dicts, &conds, data) {
@@ -521,13 +537,11 @@ async fn process_incoming<R: Runtime>(
     //    同名帧(如两条通道配置)未标则不参与, 不存在"从配置还是指令取"的歧义
     let mut captured_note = String::new();
     let ack_dicts = db::dict_map_for_group(pool, p.group_ref).await?;
-    // 配置应答的判定与 accept_config 同口径: 同时声明 结果+请求流水号 才算配置应答。
-    // 只有结果字段的注册响应不是配置应答, 其会话捕获(入网)不受 pending 配置约束。
-    let is_config_ack = fields_view.iter().any(|f| f.role == FieldRole::Result)
-        && fields_view.iter().any(|f| f.role == FieldRole::Correlation);
-    let saved_config = crate::devices::accept_config(pool, engine, node, p, &fields_view, &req_values, &ack_dicts, src).await?;
-    // An unmatched/failed configuration ACK must not create a device merely through Session capture.
-    if p.def_mode == DefMode::Fields && (!is_config_ack || saved_config) {
+    let save_note = match crate::business::accept(pool, engine, node, p, &fields_view, data, &ack_dicts, src).await {
+        Ok(note) => note,
+        Err(error) => format!("｜业务资料未保存：{error}"),
+    };
+    if p.def_mode == DefMode::Fields {
         let raw_device_key = frame_device_key.clone().unwrap_or_else(|| "_".to_string());
         let device_key = format!("s{}:{}", p.system_ref.unwrap_or(-1), raw_device_key);
         let mut got: Vec<String> = Vec::new();
@@ -550,9 +564,8 @@ async fn process_incoming<R: Runtime>(
             if f.role == FieldRole::Session {
                 db::update_node_capture(pool, node.id, &device_key, "__session", &compact).await?;
                 if raw_device_key != "_" {
-                    let request_id: Option<String> = sqlx::query_scalar("SELECT protocol_id FROM protocols WHERE auto_respond=? AND system_ref IS ? ORDER BY id LIMIT 1").bind(&p.protocol_id).bind(p.system_ref).fetch_optional(pool).await?;
-                    sqlx::query("INSERT INTO terminal_profiles(name,node_ref,system_ref,protocol_ref,device_key,session_hex) VALUES(?,?,?,?,?,?) ON CONFLICT(node_ref,system_ref,device_key) DO UPDATE SET session_hex=excluded.session_hex")
-                        .bind(format!("设备 {raw_device_key}")).bind(node.id).bind(p.system_ref.unwrap_or(-1)).bind(request_id.as_deref().unwrap_or(&p.protocol_id)).bind(&raw_device_key).bind(&compact).execute(pool).await?;
+                    sqlx::query("UPDATE terminal_profiles SET session_hex=? WHERE node_ref=? AND system_ref=? AND device_key=?")
+                        .bind(&compact).bind(node.id).bind(p.system_ref.unwrap_or(-1)).bind(&raw_device_key).execute(pool).await?;
                 }
                 {
                     {
@@ -622,7 +635,7 @@ async fn process_incoming<R: Runtime>(
             trigger_note = format!("｜触发定时发送的协议「{tp}」不存在");
         }
     }
-    let parsed = format!("{parsed}{captured_note}{trigger_note}");
+    let parsed = format!("{parsed}{captured_note}{trigger_note}{save_note}");
     push_log(
         app,
         pool,
@@ -637,7 +650,8 @@ async fn process_incoming<R: Runtime>(
     )
     .await?;
 
-    if saved_config {
+    if save_note.contains("业务资料已保存") || save_note.contains("业务资料删除处理完成") {
+        let _ = app.emit("business-records-updated", ());
         let _ = app.emit("devices-updated", ());
     }
 

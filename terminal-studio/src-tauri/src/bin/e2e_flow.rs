@@ -297,7 +297,7 @@ async fn main() {
                     fields: vec![code("信令", "32"), base("注册结果", 1, "00")],
                 }),
                 // 路由命中验证: 注册结果=00 → 分流至 s3(内嵌保活); 未命中才走默认成功边 s2(内嵌注销)
-                routes: vec![RouteRule { field: "注册结果".into(), value: "00".into(), to: "s3".into() }],
+                routes: vec![RouteRule { field: "注册结果".into(), value: "00".into(), to: "s3".into() }], allow_unkeyed_reply: true, ..Default::default()
             },
             simulated_terminal_lib::engine::flow::FlowStep {
                 id: "s2".into(), name: "默认边注销".into(), x: 700.0, y: 240.0,
@@ -305,7 +305,7 @@ async fn main() {
                 params: Default::default(), expect_protocol: None, timeout_ms: 3000, delay_ms: 0,
                 next: None, on_success: None, on_failure: None, on_timeout: None,
                 request_def: Some(SignalDef { header_refs: None, name: "内嵌注销".into(), fields: vec![code("信令", "36")] }),
-                expect_def: None, routes: Vec::new(),
+                expect_def: None, routes: Vec::new(), ..Default::default()
             },
             simulated_terminal_lib::engine::flow::FlowStep {
                 id: "s3".into(), name: "分流保活".into(), x: 360.0, y: 240.0,
@@ -313,7 +313,7 @@ async fn main() {
                 params: Default::default(), expect_protocol: None, timeout_ms: 3000, delay_ms: 0,
                 next: None, on_success: None, on_failure: None, on_timeout: None,
                 request_def: Some(SignalDef { header_refs: None, name: "内嵌保活".into(), fields: vec![code("信令", "35")] }),
-                expect_def: None, routes: Vec::new(),
+                expect_def: None, routes: Vec::new(), ..Default::default()
             },
         ],
     };

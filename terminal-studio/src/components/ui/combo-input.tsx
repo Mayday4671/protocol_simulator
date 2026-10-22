@@ -25,9 +25,11 @@ export function ComboInput({
   suggestions = [],
   className,
   onChange,
+  onSelectSuggestion,
   ...props
 }: Omit<React.ComponentProps<"input">, "list"> & {
   suggestions?: Array<string | { value: string; label: string }>;
+  onSelectSuggestion?: (index: number) => void;
 }) {
   const items = suggestions.map((s) =>
     typeof s === "string" ? { value: s, label: s } : s,
@@ -47,7 +49,8 @@ export function ComboInput({
     const item = items[index];
     if (!item || !enabled) return;
     const target = { ...inputRef.current, value: item.value };
-    onChange?.({
+    if (onSelectSuggestion) onSelectSuggestion(index);
+    else onChange?.({
       target,
       currentTarget: target,
     } as React.ChangeEvent<HTMLInputElement>);

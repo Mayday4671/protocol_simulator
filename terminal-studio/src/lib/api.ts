@@ -179,6 +179,11 @@ export interface RouteRule {
   to: string;
 }
 export interface FlowStep {
+  action?: string;
+  correlation?: { request: string; response: string }[];
+  allow_unkeyed_reply?: boolean;
+  result_field?: string;
+  success_hex?: string;
   id: string;
   name: string;
   x: number;
@@ -221,8 +226,22 @@ export interface FlowRunEvent {
 export const listFlows = () => invoke<FlowRow[]>("list_flows");
 export const upsertFlow = (payload: FlowRow) => invoke<FlowRow>("upsert_flow", { payload });
 export const deleteFlow = (id: number) => invoke<void>("delete_flow", { id });
-export const startFlowRun = (flowId: number, terminalIds: number[]) =>
-  invoke<number>("start_flow_run", { flowId, terminalIds });
+export const startFlowRun = (flowId: number, terminalIds: number[], nodeId?: number, manual = false) =>
+  invoke<number>("start_flow_run", { flowId, terminalIds, nodeId, manual });
+export interface FlowTraceEvent extends FlowRunEvent {
+  index: number; at: number; attempt: number;
+  packet: import("@/types").LogRecord | null;
+  next_step: string | null; branch: string | null;
+}
+export interface FlowTrace {
+  run_id: number; flow: FlowRow; node_id: number; node_name: string;
+  manual: boolean; started_at: number; ended_at: number | null;
+  terminal_ids: number[];
+  status: string; events: FlowTraceEvent[]; omitted: number;
+  step_states: Record<string, FlowTraceEvent>;
+  transitions: FlowTraceEvent[];
+}
+export const getFlowTraces = (flowId: number) => invoke<FlowTrace[]>("flow_traces", { flowId });
 export const stopFlowRun = (runId: number) => invoke<void>("stop_flow_run", { runId });
 export const listFlowRuns = () =>
   invoke<{ run_id: number; flow_id: number; node_id: number }[]>("flow_runs");

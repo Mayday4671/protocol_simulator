@@ -369,7 +369,7 @@ async fn main() {
     }
 
 
-    udp::stop_server(&handle, engine, node.id);
+    udp::stop_server(&handle, engine, node.id).await;
     pool.close().await;
     let _ = std::fs::remove_file(&dst);
     println!("[E2E] 全链路验证通过 ✅ (配置→双注册分桶安全信息→A主叫→B应答接收→确认)");

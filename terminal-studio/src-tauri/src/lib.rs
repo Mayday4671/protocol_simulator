@@ -2,6 +2,10 @@
 
 mod commands;
 pub mod devices;
+pub mod business;
+pub mod record_types;
+#[cfg(test)]
+mod business_tests;
 
 #[cfg(feature = "e2e")]
 pub use commands::protocols::validate_all_protocols as e2e_validate_all_protocols;
@@ -48,6 +52,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            business::list_save_rules,
+            business::save_business_rule,
+            business::list_business_records,
+            business::delete_business_record,
+            record_types::list_record_types,
+            record_types::save_record_type,
+            record_types::delete_record_type,
             commands::terminals::list_terminals,
             commands::terminals::save_terminal,
             commands::terminals::delete_terminal,
@@ -102,6 +113,7 @@ pub fn run() {
             commands::flows::start_flow_run,
             commands::flows::stop_flow_run,
             commands::flows::flow_runs,
+            commands::flows::flow_traces,
             // 日志
             commands::logs::query_logs,
             commands::logs::clear_logs,

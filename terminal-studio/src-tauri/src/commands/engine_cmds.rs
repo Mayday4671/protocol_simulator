@@ -33,7 +33,7 @@ pub async fn stop_udp_server(
     state: State<'_, AppState>,
     node_id: i64,
 ) -> AppResult<()> {
-    udp::stop_server(&app, &state.engine, node_id);
+    udp::stop_server(&app, &state.engine, node_id).await;
     Ok(())
 }
 
@@ -182,7 +182,7 @@ pub async fn stop_heartbeat_task(
 pub async fn stop_all(app: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
     let node_ids: Vec<i64> = state.engine.sockets.iter().map(|r| *r.key()).collect();
     for id in node_ids {
-        udp::stop_server(&app, &state.engine, id);
+        udp::stop_server(&app, &state.engine, id).await;
     }
     Ok(())
 }

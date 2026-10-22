@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DictionaryPicker } from "@/components/protocols/DictionaryPicker";
+import { FieldValueEditor } from "@/components/protocols/FieldValueEditor";
 import { dictItemLabel } from "@/components/ui/combo-input";
 import { cn } from "@/lib/utils";
 import { FieldSectionSettings } from "@/components/protocols/FieldSectionSettings";
@@ -212,7 +213,12 @@ export const FieldRowItem = React.memo(function FieldRowItem({
             </span>
             <span className="text-[11px] leading-snug text-muted-foreground">{defaultSummary}</span>
           </button>
-        ) : r.dict ? (
+        ) : (
+          <FieldValueEditor value={r.value} enc={r.enc} bytes={Number(r.len)} label={`字段值：${r.name}`}
+            onDeviceChange={value => onPatch(index, { value, dict: "" })}
+            onSourceValueChange={value => onPatch(index, { value, dict: "" })}
+            onChange={value => onPatch(index, { value })}
+            fixedEditor={r.dict ? (
           <Select
             value={r.value}
             onValueChange={(v) => onPatch(index, { value: v })}
@@ -236,13 +242,7 @@ export const FieldRowItem = React.memo(function FieldRowItem({
               )}
             </SelectContent>
           </Select>
-        ) : (
-          <Input
-            className="h-8 font-mono text-xs"
-            placeholder="十六进制, 如 FF A1 / 留空补 0"
-            value={r.value}
-            onChange={(e) => onPatch(index, { value: e.target.value })}
-          />
+        ) : undefined} />
         )}
         <Select
           value={r.role ?? "none"}
@@ -492,15 +492,19 @@ export const FieldRowItem = React.memo(function FieldRowItem({
                         </UXSelectItem>
                       </UXSelectContent>
                     </UXSelect>
-                    <Input
-                      aria-label={`${r.name} 第${ui + 1}个子字段 默认值`}
-                      className="h-8 min-w-0 font-mono text-xs"
-                      placeholder="默认值"
+                    <FieldValueEditor
+                      label={`${r.name} 第${ui + 1}个子字段 默认值`}
+                      enc={u.enc}
+                      bytes={Number(u.len)}
+                      onDeviceChange={value =>
+                        onPatch(index, { units: (r.units ?? []).map((x, j) => j === ui ? { ...x, value, dict: "" } : x) })}
+                      onSourceValueChange={value =>
+                        onPatch(index, { units: (r.units ?? []).map((x, j) => j === ui ? { ...x, value, dict: "" } : x) })}
                       value={u.value ?? ""}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         onPatch(index, {
                           units: (r.units ?? []).map((x, j) =>
-                            j === ui ? { ...x, value: e.target.value } : x,
+                            j === ui ? { ...x, value } : x,
                           ),
                         })
                       }

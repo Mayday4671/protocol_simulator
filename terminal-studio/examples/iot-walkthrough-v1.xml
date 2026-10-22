@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<simterm-import>
+  <system name="物联网联调协议 v1（自定义）">
+    <group name="设备交互">
+      <header id="iot_walk_v1_header" name="物联网公共头" enabled="true">
+        <field name="同步字" len="2" enc="hex" value="C0DE"/>
+        <field name="版本" len="1" enc="hex" value="01"/>
+        <field name="消息码" len="1" enc="hex" value="01" role="type_code"/>
+        <field name="源设备" len="2" enc="hex" value="0001" role="src_id"/>
+        <field name="目标设备" len="2" enc="hex" value="0000" role="dst_id"/>
+        <field name="流水号" len="2" enc="hex" value="{seq}" role="correlation"/>
+        <field name="会话令牌" len="2" enc="hex" value="{session}"/>
+        <field name="报文总长" len="2" enc="hex" value="{tlen}"/>
+      </header>
+      <dict key="iot_walk_v1_result" name="处理结果">
+        <item value="00" label="成功"/>
+        <item value="01" label="不支持的命令"/>
+        <item value="02" label="参数无效"/>
+        <item value="03" label="未注册"/>
+        <item value="04" label="会话无效"/>
+      </dict>
+      <dict key="iot_walk_v1_relay" name="继电器状态">
+        <item value="00" label="关闭"/>
+        <item value="01" label="开启"/>
+      </dict>
+      <dict key="iot_walk_v1_state" name="设备状态">
+        <item value="00" label="正常"/>
+        <item value="01" label="告警"/>
+      </dict>
+      <dict key="iot_walk_v1_model" name="设备型号">
+        <item value="01" label="环境采集终端"/>
+      </dict>
+      <protocol id="iot_walk_v1_register_req" name="0x01 注册设备" type="Request" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="01"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="01" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="会话令牌" len="2" enc="hex" value="{session}" header-ref="iot_walk_v1_header::会话令牌" role="session"/>
+        <field name="设备型号" len="1" enc="hex" value="01" dict="iot_walk_v1_model"/>
+        <field name="固件版本" len="2" enc="hex" value="0100"/>
+        <field name="设备序列号" len="4" enc="hex" value="01020304" profile-key="serial"/>
+      </protocol>
+      <protocol id="iot_walk_v1_register_resp" name="0x81 注册设备响应" type="Response" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="81"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="81" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="会话令牌" len="2" enc="hex" value="{session}" header-ref="iot_walk_v1_header::会话令牌" role="session"/>
+        <field name="处理结果" len="1" enc="hex" value="00" dict="iot_walk_v1_result" role="result"/>
+        <field name="建议心跳周期（秒）" len="2" enc="hex" value="001E"/>
+      </protocol>
+      <protocol id="iot_walk_v1_heartbeat_req" name="0x02 心跳保活" type="Request" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="02"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="02" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="会话令牌" len="2" enc="hex" value="{session}" header-ref="iot_walk_v1_header::会话令牌" role="session"/>
+        <field name="运行秒数" len="4" enc="hex" value="0000003C"/>
+        <field name="设备状态" len="1" enc="hex" value="00" dict="iot_walk_v1_state"/>
+      </protocol>
+      <protocol id="iot_walk_v1_heartbeat_resp" name="0x82 心跳保活响应" type="Response" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="82"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="82" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="处理结果" len="1" enc="hex" value="00" dict="iot_walk_v1_result" role="result"/>
+        <field name="平台时间戳" len="4" enc="hex" value="{timestamp}"/>
+      </protocol>
+      <protocol id="iot_walk_v1_configure_req" name="0x10 配置采样参数" type="Request" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="10"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="10" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="会话令牌" len="2" enc="hex" value="{session}" header-ref="iot_walk_v1_header::会话令牌" role="session"/>
+        <field name="采样周期（秒）" len="2" enc="hex" value="000A"/>
+        <field name="告警温度（0.1℃）" len="2" enc="hex" value="012C"/>
+      </protocol>
+      <protocol id="iot_walk_v1_configure_resp" name="0x90 配置采样参数响应" type="Response" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="90"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="90" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="处理结果" len="1" enc="hex" value="00" dict="iot_walk_v1_result" role="result"/>
+        <field name="生效采样周期（秒）" len="2" enc="hex" value="000A"/>
+      </protocol>
+      <protocol id="iot_walk_v1_query_req" name="0x11 查询设备状态" type="Request" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="11"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="11" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="会话令牌" len="2" enc="hex" value="{session}" header-ref="iot_walk_v1_header::会话令牌" role="session"/>
+        <field name="查询范围" len="1" enc="hex" value="01"/>
+      </protocol>
+      <protocol id="iot_walk_v1_query_resp" name="0x91 查询设备状态响应" type="Response" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="91"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="91" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="处理结果" len="1" enc="hex" value="00" dict="iot_walk_v1_result" role="result"/>
+        <field name="温度（0.1℃）" len="2" enc="hex" value="00FA"/>
+        <field name="湿度（0.1%）" len="2" enc="hex" value="01F4"/>
+        <field name="继电器状态" len="1" enc="hex" value="00" dict="iot_walk_v1_relay"/>
+        <field name="当前采样周期（秒）" len="2" enc="hex" value="000A"/>
+      </protocol>
+      <protocol id="iot_walk_v1_control_req" name="0x20 控制继电器" type="Request" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="20"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="20" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="会话令牌" len="2" enc="hex" value="{session}" header-ref="iot_walk_v1_header::会话令牌" role="session"/>
+        <field name="继电器状态" len="1" enc="hex" value="01" dict="iot_walk_v1_relay"/>
+      </protocol>
+      <protocol id="iot_walk_v1_control_resp" name="0xA0 控制继电器响应" type="Response" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="A0"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="A0" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="处理结果" len="1" enc="hex" value="00" dict="iot_walk_v1_result" role="result"/>
+        <field name="继电器状态" len="1" enc="hex" value="01" dict="iot_walk_v1_relay"/>
+      </protocol>
+      <protocol id="iot_walk_v1_logout_req" name="0x7F 注销设备" type="Request" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="7F"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="7F" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="会话令牌" len="2" enc="hex" value="{session}" header-ref="iot_walk_v1_header::会话令牌" role="session"/>
+        <field name="注销原因" len="1" enc="hex" value="00"/>
+      </protocol>
+      <protocol id="iot_walk_v1_logout_resp" name="0xFF 注销设备响应" type="Response" header-refs="iot_walk_v1_header" description="联调协议 v1：大端；应答回显流水号，交换源/目标设备；00 表示业务成功。">
+        <match>
+          <cond field="同步字" value="C0DE"/>
+          <cond field="版本" value="01"/>
+          <cond field="消息码" value="FF"/>
+        </match>
+        <field name="消息码" len="1" enc="hex" value="FF" header-ref="iot_walk_v1_header::消息码" role="type_code"/>
+        <field name="处理结果" len="1" enc="hex" value="00" dict="iot_walk_v1_result" role="result"/>
+      </protocol>
+    </group>
+  </system>
+</simterm-import>

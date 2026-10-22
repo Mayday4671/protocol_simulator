@@ -103,7 +103,7 @@ async fn exercise(pool:&SqlitePool)->Result<()> {
         }
         Ok::<_,Box<dyn std::error::Error+Send+Sync>>(())
     }.await;
-    udp::stop_server(handle,&engine,id);
+    udp::stop_server(handle,&engine,id).await;
     sqlx::query("DELETE FROM nodes WHERE id=? AND name='Device workflow E2E'").bind(id).execute(pool).await?;
     result
 }

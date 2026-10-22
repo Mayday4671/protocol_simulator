@@ -1,0 +1,32 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');const ts=require('typescript');const Module=require('node:module');
+const path=require('node:path');const file=path.resolve('src/components/flows/timelinePhases.ts');
+const mod=new Module(file,module);mod._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,file);
+const {timelinePhases}=mod.exports;
+const step={id:'logout',name:'注销设备',action:'send',protocol_id:'req',expect_protocol:'ack'};
+const flow={steps:[step]};
+const event=(status,index,attempt=1,packet=null)=>({step_id:'logout',status,index,at:1000+index,attempt,packet});
+const sent=event('sent',2,1,{direction:'out'}),waiting=event('waiting',3),ack=event('success',4,1,{direction:'in'});
+const trace=(events,last,ended=false)=>({events,step_states:{logout:last},ended_at:ended?2000:null,status:ended?'done':'running',omitted:0});
+const states=t=>timelinePhases(flow,t).map(p=>p.state);
+assert.deepEqual(states(),['pending','pending']);
+assert.deepEqual(states(trace([event('waiting_send',1)],event('waiting_send',1))),['waiting_send','pending']);
+assert.deepEqual(states(trace([event('waiting_send',1),event('unmatched',2,1,{direction:'in'})],event('waiting_send',1))),['waiting_send','pending'],'Unrelated incoming packet does not prove a request was sent');
+assert.deepEqual(states(trace([sent,waiting],waiting)),['success','waiting']);
+assert.deepEqual(states(trace([sent,waiting,ack],ack,true)),['success','success']);
+for(const status of ['failure','timeout','error']){
+ const end=event(status,4);
+ assert.deepEqual(states(trace([sent,waiting,end],end,true)),['success',status]);
+ assert.deepEqual(states(trace([end],end,true)),[status,'pending']);
+}
+const stopped=trace([sent,waiting],waiting,true);stopped.status='aborted';
+assert.deepEqual(states(stopped),['success','aborted']);
+const next=event('waiting_send',5,2);
+assert.deepEqual(states(trace([sent,waiting,ack,next],next)),['waiting_send','pending'],'New attempt must not inherit prior success');
+const phases=timelinePhases(flow,trace([sent,waiting,ack],ack,true));
+assert.equal(phases[0].events.filter(e=>e.packet).length,1);
+assert.equal(phases[0].events.find(e=>e.packet).packet.direction,'out');
+assert.equal(phases[1].events.find(e=>e.packet).packet.direction,'in');
+assert.equal(timelinePhases({steps:[{...step,expect_protocol:null}]}).length,1);
+assert.equal(timelinePhases({steps:[{...step,action:'receive',expect_protocol:null}]}).length,1);
+console.log('PASS separate send/response states, wait, success, failure, timeout, abort, attempts, packet ownership and one-way/receive steps');

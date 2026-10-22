@@ -120,7 +120,7 @@ async fn header_combinations_real_udp_and_header_only_type_code_reply() {
     assert_eq!(&buffer[..len],&[0xBB,0xAA,0xCC]);
     let matched: String=sqlx::query_scalar("SELECT protocol_id FROM logs WHERE direction='in' ORDER BY id DESC LIMIT 1").fetch_one(&pool).await.unwrap();
     assert_eq!(matched,"request");
-    udp::stop_server(handle,&engine,node.id);
+    udp::stop_server(handle,&engine,node.id).await;
 }
 
 #[tokio::test]

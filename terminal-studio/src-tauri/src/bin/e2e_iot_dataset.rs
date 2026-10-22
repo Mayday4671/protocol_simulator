@@ -1052,7 +1052,7 @@ async fn main() -> TestResult<()> {
     let handle = app.handle().clone();
     let engine = Arc::new(EngineState::new());
     let result = exercise(&handle, &pool, &engine, &node, &peer, &all).await;
-    udp::stop_server(&handle, &engine, node_id);
+    udp::stop_server(&handle, &engine, node_id).await;
     require!(
         engine.sockets.is_empty() && engine.listeners.is_empty() && engine.periodic.is_empty(),
         "engine cleanup did not release test tasks/sockets"

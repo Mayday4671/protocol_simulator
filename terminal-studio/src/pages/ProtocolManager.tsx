@@ -1,3 +1,4 @@
+import { listSaveRules } from "@/lib/businessRules";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -55,6 +56,8 @@ import { dedupeNames } from "@/lib/fieldNames";
 import { groupHeaderDefinitions, protocolHeaderRefs, resolveProtocolHeaders, mergeResolvedHeaderFields } from "@/lib/protocolHeaders";
 import { FieldBranches, canonicalWhenValue } from "@/components/protocols/FieldBranches";
 import { ProtocolXmlDialog } from "@/components/protocols/ProtocolXmlDialog";
+import { BusinessRuleEditor } from "@/components/protocols/BusinessRuleEditor";
+import { Database } from "lucide-react";
 import {
   FieldRowItem,
   FIELD_ROW_GRID,
@@ -392,6 +395,8 @@ interface TreeSel {
 }
 
 export function ProtocolManager() {
+  const [ruleRequests, setRuleRequests] = useState<string[]>([]);
+  const [ruleProtocol, setRuleProtocol] = useState<Protocol | null>(null);
   const [protocols, setProtocols] = useState<Protocol[]>([]);
   const [systems, setSystems] = useState<ProtocolSystem[]>([]);
   const [groups, setGroups] = useState<ProtocolGroup[]>([]);
@@ -490,6 +495,7 @@ export function ProtocolManager() {
       setProtocols(p);
       setSystems(s);
       setGroups(g);
+      setRuleRequests((await listSaveRules()).map(r => r.request));
     } catch (e) {
       if (throwOnError) throw e;
       toast.error("加载协议失败", { description: String(e) });
@@ -1221,6 +1227,7 @@ export function ProtocolManager() {
                       </TableCell>
                       <TableCell className="sticky right-0 bg-card text-right">
                         <div className="flex justify-end gap-1">
+                          {p.msg_type === 'Request' && <Button variant="ghost" size="icon" title={ruleRequests.includes(p.protocol_id) ? "应答保存规则（已启用）" : "应答保存规则"} className={ruleRequests.includes(p.protocol_id) ? "text-primary" : ""} onClick={() => setRuleProtocol(p)}><Database /></Button>}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1963,6 +1970,7 @@ export function ProtocolManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {ruleProtocol && <BusinessRuleEditor protocol={ruleProtocol} protocols={protocols} groups={groups} onClose={() => { setRuleProtocol(null); void refresh(); }} />}
     </div>
   );
 }

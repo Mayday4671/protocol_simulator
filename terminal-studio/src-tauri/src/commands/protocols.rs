@@ -259,6 +259,9 @@ pub(crate) async fn import_xml_text(state: &AppState, md_text: String) -> AppRes
     let md = parse_protocols_xml(&md_text)?;
     // A rejected protocol cannot be silently omitted while its group's header changes are applied.
     if !md.failed.is_empty() { return Ok(ImportResult { failed: md.failed, ..Default::default() }); }
+    for rule in &md.save_rules {
+        if !md.protocols.iter().any(|p|p.protocol_id==rule.request) || !md.protocols.iter().any(|p|p.protocol_id==rule.response){return Err(AppError::msg("保存规则的请求和应答协议须一起导入"));}
+    }
     let mut ids = std::collections::HashSet::new();
     for p in &md.protocols {
         if !ids.insert(p.protocol_id.clone()) { return Err(AppError::msg(format!("导入协议标识 [{}] 重复", p.protocol_id))); }
@@ -356,6 +359,25 @@ pub(crate) async fn import_xml_text(state: &AppState, md_text: String) -> AppRes
             }
             Err(e) => result.failed.push(format!("[{}] 写入数据库失败: {e}", p.protocol_id)),
         }
+    }
+
+    // Rules only change after all protocol definitions imported successfully.
+    if result.failed.is_empty() {
+        for t in &md.record_types {
+            let system = db::resolve_system_by_name(&state.pool, &t.system).await?;
+            crate::record_types::save(&state.pool, system.id, &t.definition).await?;
+        }
+        for rule in &md.save_rules { crate::business::validate(&state.pool,rule).await?; }
+        let mut pending=state.engine.pending_saves.lock().await;
+        let mut tx=state.pool.begin().await?;
+        for id in &ids {
+            sqlx::query("DELETE FROM business_save_rules WHERE request_ref=?").bind(id).execute(&mut *tx).await?;
+        }
+        for rule in &md.save_rules {
+            sqlx::query("INSERT INTO business_save_rules(request_ref,response_ref,rule_json) VALUES(?,?,?)").bind(&rule.request).bind(&rule.response).bind(serde_json::to_string(rule)?).execute(&mut *tx).await?;
+        }
+        tx.commit().await?;
+        pending.clear();
     }
 
     // 业务流程落库(按 系统+流程名 upsert; 协议已在上面写入, 步骤引用按 protocol_id 原样保留)
@@ -590,6 +612,11 @@ pub async fn export_protocols_to_xml(
     file_path: String,
 ) -> AppResult<u64> {
     let all = db::list_protocols(&state.pool).await?;
+    let rules = crate::business::rules(&state.pool).await?;
+    let mut protocol_ids=protocol_ids;
+    if !protocol_ids.is_empty() {
+        loop { let before=protocol_ids.len(); for rule in &rules { if protocol_ids.contains(&rule.request) && !protocol_ids.contains(&rule.response){protocol_ids.push(rule.response.clone());} } if before==protocol_ids.len(){break;} }
+    }
     let selected: Vec<Protocol> = if protocol_ids.is_empty() {
         all
     } else {
@@ -605,7 +632,11 @@ pub async fn export_protocols_to_xml(
     // 选中协议所属分组、且已启用的公共头一并导出
     let headers = collect_enabled_headers(&state.pool, &selected).await?;
     let flows = collect_flows(&state.pool, &selected).await?;
-    let md_text = export_protocols_xml(&selected, &dicts, &headers, &flows);
+    let rules:Vec<_>=rules.into_iter().filter(|r|selected.iter().any(|p|p.protocol_id==r.request)).collect();
+    let md_text = simterm_core::xml::append_save_rules(export_protocols_xml(&selected, &dicts, &headers, &flows),&rules)?;
+    let systems: Vec<_> = selected.iter().filter_map(|p| p.system_ref).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+    let types = crate::record_types::export(&state.pool, &systems, &rules).await?;
+    let md_text = simterm_core::xml::append_record_types(md_text, &types);
     std::fs::write(&file_path, md_text)
         .map_err(|e| AppError::msg(format!("写入文件失败 {file_path}: {e}")))?;
     Ok(selected.len() as u64)
@@ -618,6 +649,11 @@ pub async fn export_protocols_xml_text(
     protocol_ids: Vec<String>,
 ) -> AppResult<String> {
     let all = db::list_protocols(&state.pool).await?;
+    let rules = crate::business::rules(&state.pool).await?;
+    let mut protocol_ids=protocol_ids;
+    if !protocol_ids.is_empty() {
+        loop { let before=protocol_ids.len(); for rule in &rules { if protocol_ids.contains(&rule.request) && !protocol_ids.contains(&rule.response){protocol_ids.push(rule.response.clone());} } if before==protocol_ids.len(){break;} }
+    }
     let selected: Vec<Protocol> = if protocol_ids.is_empty() {
         all
     } else {
@@ -631,7 +667,11 @@ pub async fn export_protocols_xml_text(
     let dicts = collect_referenced_dicts(&state.pool, &selected).await?;
     let headers = collect_enabled_headers(&state.pool, &selected).await?;
     let flows = collect_flows(&state.pool, &selected).await?;
-    Ok(export_protocols_xml(&selected, &dicts, &headers, &flows))
+    let rules:Vec<_>=rules.into_iter().filter(|r|selected.iter().any(|p|p.protocol_id==r.request)).collect();
+    let xml = simterm_core::xml::append_save_rules(export_protocols_xml(&selected, &dicts, &headers, &flows),&rules)?;
+    let systems: Vec<_> = selected.iter().filter_map(|p| p.system_ref).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+    let types = crate::record_types::export(&state.pool, &systems, &rules).await?;
+    Ok(simterm_core::xml::append_record_types(xml, &types))
 }
 
 /// 收集业务流程(选中协议所属系统 + 全部流程一并导出, 换机不丢编排)

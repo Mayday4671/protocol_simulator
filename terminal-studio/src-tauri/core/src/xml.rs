@@ -89,7 +89,15 @@ pub struct ParsedImport {
     pub dicts: Vec<DictSetMd>,
     pub group_headers: Vec<GroupHeaderMd>,
     pub flows: Vec<FlowMd>,
+    pub save_rules: Vec<crate::business::SaveRule>,
+    pub record_types: Vec<RecordTypeXml>,
     pub failed: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordTypeXml {
+    pub system: String,
+    pub definition: crate::business::RecordType,
 }
 
 // ---- 属性解析 ----
@@ -613,6 +621,38 @@ pub fn parse_protocols_xml(xml: &str) -> AppResult<ParsedImport> {
         };
     for node in root.children().filter(|n| n.is_element()) {
         match node.tag_name().name() {
+            "record-type" => {
+                let system = node.attribute("system").unwrap_or("").to_owned();
+                let definition = crate::business::RecordType {
+                    kind: node.attribute("kind").unwrap_or("").into(),
+                    name: node.attribute("name").unwrap_or("").into(),
+                    device_required: match node.attribute("device-required").unwrap_or("false") { "true" => true, "false" => false, _ => return Err(AppError::msg("资料关联设置须为 true/false")) },
+                    key_scope: node.attribute("key-scope").unwrap_or("channel").into(),
+                    properties: node.children().filter(|c| c.has_tag_name("property")).map(|c| c.attribute("name").unwrap_or("").to_owned()).collect(),
+                };
+                definition.validate()?;
+                if system.trim().is_empty() || out.record_types.iter().any(|t| t.system == system && t.definition.kind == definition.kind) { return Err(AppError::msg("资料类型缺少系统或同系统类型重复")); }
+                out.record_types.push(RecordTypeXml { system, definition });
+            }
+            "save-rule" => {
+                let mut value=serde_json::Map::new();
+                for a in node.attributes() {
+                    let v=match a.name(){
+                        "serial"=>serde_json::Value::Bool(a.value()=="true"),
+                        "timeout_ms"=>serde_json::Value::Number(a.value().parse::<u64>().map_err(|_|AppError::msg("保存规则等待时间无效"))?.into()),
+                        _=>serde_json::Value::String(a.value().into()),
+                    };
+                    value.insert(a.name().into(),v);
+                }
+                let mappings:Vec<_>=node.children().filter(|c|c.has_tag_name("mapping")).map(|c| {
+                    serde_json::json!({"property":c.attribute("property").unwrap_or(""),"source":c.attribute("source").unwrap_or(""),"field":c.attribute("field").unwrap_or("")})
+                }).collect();
+                value.insert("mappings".into(),mappings.into());
+                let rule:crate::business::SaveRule=serde_json::from_value(value.into()).map_err(|e|AppError::msg(format!("应答保存规则无效：{e}")))?;
+                if out.save_rules.iter().any(|r|r.request==rule.request){return Err(AppError::msg("请求存在重复保存规则"));}
+                out.save_rules.push(rule);
+            }
+
             "system" => {
                 let sys_name = node
                     .attribute("name")
@@ -1267,4 +1307,34 @@ mod tests {
             })
             .collect()
     }
+}
+
+/// Append explicit business persistence rules to the protocol document.
+pub fn append_save_rules(xml:String,rules:&[crate::business::SaveRule])->AppResult<String> {
+    fn esc(s:&str)->String{s.replace('&',"&amp;").replace('<',"&lt;").replace('>',"&gt;").replace('"',"&quot;")}
+    let mut extra=String::new();
+    for rule in rules {
+        let value=serde_json::to_value(rule)?;
+        extra.push_str("  <save-rule");
+        for (key,value) in value.as_object().unwrap() {
+            if key=="mappings"{continue;}
+            let raw=value.as_str().map(str::to_owned).unwrap_or_else(||value.to_string());
+            extra.push_str(&format!(" {key}=\"{}\"",esc(&raw)));
+        }
+        extra.push_str(">\n");
+        for m in &rule.mappings{extra.push_str(&format!("    <mapping property=\"{}\" source=\"{}\" field=\"{}\"/>\n",esc(&m.property),esc(&m.source),esc(&m.field)));}
+        extra.push_str("  </save-rule>\n");
+    }
+    Ok(xml.replace("</simterm-import>",&format!("{extra}</simterm-import>")))
+}
+
+pub fn append_record_types(xml: String, types: &[RecordTypeXml]) -> String {
+    let mut extra = String::new();
+    for t in types {
+        let d = &t.definition;
+        extra.push_str(&format!("  <record-type system=\"{}\" kind=\"{}\" name=\"{}\" device-required=\"{}\" key-scope=\"{}\">\n", esc(&t.system), esc(&d.kind), esc(&d.name), d.device_required, esc(&d.key_scope)));
+        for p in &d.properties { extra.push_str(&format!("    <property name=\"{}\"/>\n", esc(p))); }
+        extra.push_str("  </record-type>\n");
+    }
+    xml.replace("</simterm-import>", &format!("{extra}</simterm-import>"))
 }

@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DictionaryPicker } from "@/components/protocols/DictionaryPicker";
+import { FieldValueEditor } from "@/components/protocols/FieldValueEditor";
 import { dictItemLabel } from "@/components/ui/combo-input";
 import { SortableContainer, SortableRow } from "@/components/ui/sortable-list";
 import { updateGroupHeaders } from "@/lib/api";
@@ -397,7 +398,12 @@ export function GroupHeaderCard({
                             else bindDict(i, key);
                           }}
                         />
-                        {r.dict ? (
+                        <FieldValueEditor value={r.value} enc={r.enc} bytes={Number(r.len)}
+                          onDeviceChange={value => setRow(i, { value, dict: "" })}
+                          onSourceValueChange={value => setRow(i, { value, dict: "" })}
+                          label={`公共头第${i + 1}个字段值`}
+                          onChange={value => setRow(i, { value })}
+                          fixedEditor={r.dict ? (
                           <Select
                             value={r.value}
                             onValueChange={(v) => setRow(i, { value: v })}
@@ -416,23 +422,7 @@ export function GroupHeaderCard({
                               ))}
                             </SelectContent>
                           </Select>
-                        ) : (
-                          <Input
-                            className="h-8 font-mono text-xs"
-                            aria-label={`公共头第${i + 1}个字段值`}
-                            placeholder={
-                              r.enc === "hex"
-                                ? "如 FF A1 / 留空补 0"
-                                : r.enc === "uint"
-                                  ? "十进制 / 0x 前缀 / 留空补 0"
-                                  : "文本（留空补 0）"
-                            }
-                            value={r.value}
-                            onChange={(e) =>
-                              setRow(i, { value: e.target.value })
-                            }
-                          />
-                        )}
+                        ) : undefined} />
                         <Select
                           value={r.role ?? "none"}
                           onValueChange={(v) =>

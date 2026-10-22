@@ -1,3 +1,4 @@
+import { FlowConsoleTracker, type FlowConsoleTrackerHandle } from "@/components/flows/FlowConsoleTracker";
 import {
   Select as UXSelect,
   SelectTrigger as UXSelectTrigger,
@@ -25,10 +26,10 @@ import type { TerminalProfile } from "@/types";
 import {
   defaultFieldValue,
   fieldIsActive,
-  mappedFieldValues,
   parseProperties,
   protocolFrame,
 } from "@/lib/deviceProfiles";
+import { deviceFieldValue, deviceSelectionValues, isDeviceField, type DeviceFieldSource } from "@/lib/deviceSelection";
 import { WorkspaceActivityContext } from "@/components/layout/WorkspaceActivity";
 import {
   Activity,
@@ -62,12 +63,9 @@ import {
   listProtocols,
   listSystems,
   sendUdpMessage,
-  startFlowRun,
-  stopFlowRun,
   startPeriodicSend,
   stopPeriodicSend,
   type FlowRow,
-  type FlowRunEvent,
 } from "@/lib/api";
 import { dictItemLabel, ComboInput } from "@/components/ui/combo-input";
 import { useUdpLogs } from "@/hooks/useUdpLogs";
@@ -107,85 +105,20 @@ const AUTO_VAR_LABEL: Record<string, string> = {
   random: "随机数（每次随机）",
 };
 const AUTO_VAR_RE = /^\{(seq|tlen|timestamp|random|rlen[^}]*|last:[^}]*)\}$/;
-/** 紧凑 hex 转空格分隔展示, 如 534E30 → 53 4E 30 */
-function spacedHex(compact: string): string {
-  return compact.replace(/(..)(?=.)/g, "$1 ");
-}
-/** 紧凑 hex 按大端递增 i, 保持指定字节宽度 */
-/**
- * 设备相关字段(名称含 设备/序列号/ID)的下拉建议: 节点 + 档案设备, 按字段长度匹配。
- * 语义区分: 「源」字段 = 发送方（当前通道节点排最前并标注）;
- * 「目标」字段 = 接收方（排除当前通道节点, 只列对端设备）
- */
-function deviceOptions(
-  f: ProtocolField,
-  nodes: Node[],
-  snItems: Array<{
-    value: string;
-    label: string;
-  }>,
-  curNodeId?: number | null,
-): Array<{
-  value: string;
-  label: string;
-}> {
-  const opts: Array<{
-    value: string;
-    label: string;
-  }> = [];
-  const lenHex = f.len * 2;
-  const isSrc = f.role === "src_id";
-  const isDst = f.role === "dst_id";
-  // 设备ID 只列「设备」: 模拟设备角色的节点; 监测平台/服务端(target)不是设备, 不进列表
-  // 全部节点可选, 按角色标注(设备/服务端); 目标字段排除当前通道(不会发给自己)
-  const roleTag = (n: Node) =>
-    n.role === "target" ? "（服务端）" : "（设备）";
-  const candidates = nodes.filter((n) => !(isDst && n.id === curNodeId));
-  // 源字段: 当前通道节点排最前
-  const ordered =
-    isSrc && curNodeId != null
-      ? [...candidates].sort((a, b) =>
-          a.id === curNodeId ? -1 : b.id === curNodeId ? 1 : 0,
-        )
-      : candidates;
-  for (const n of ordered) {
-    const compact = (n.node_id_hex ?? "").replace(/\s+/g, "");
-    if (compact.length === lenHex) {
-      const v = spacedHex(compact);
-      const tag = n.id === curNodeId ? "（当前通道）" : roleTag(n);
-      opts.push({ value: v, label: `${n.name}${tag} · ${v}` });
-    }
-  }
-  if (f.len === 8) {
-    for (const it of snItems) {
-      const v = spacedHex(it.value);
-      opts.push({ value: v, label: `${it.label} · ${v}` });
-    }
-  }
-  return opts;
-}
-/** 单个字段输入: 自动变量只读说明; 设备/序列号字段可下拉选节点与档案设备; 字典字段为下拉(空值默认第一条) */
+/** Field-local device selection shares the ordinary editable input. */
 function FieldInput({
   f,
   value,
   dicts,
-  nodes,
-  curNodeId,
-  snArchive,
-  readOnly = false,
+  devices,
+  onDeviceSelect,
   onChange,
 }: {
   f: ProtocolField;
   value: string;
   dicts: DictSetView[];
-  nodes: Node[];
-  curNodeId?: number | null;
-  /** 全部档案设备(跨字典聚合): value=紧凑hex, label=含义 */
-  snArchive: Array<{
-    value: string;
-    label: string;
-  }>;
-  readOnly?: boolean;
+  devices: DeviceFieldSource[];
+  onDeviceSelect: (device: DeviceFieldSource) => void;
   onChange: (v: string) => void;
 }) {
   const v = value.trim();
@@ -211,14 +144,15 @@ function FieldInput({
         ? dictItems[0].value
         : (dictItems.find((it) => norm(it.value) === norm(v))?.value ?? "")
       : "";
-  // 设备序列号语义字段(任意 key)或值命中全局档案 → 用可输可选的档案选择框
-  const isDeviceSn = f.role === "device_sn" && !f.dict;
-  const snItems = snArchive;
-  // 未绑字典的设备/序列号/ID 字段: 给出节点与档案设备的下拉建议
-  const devOpts =
-    !f.dict && f.enc === "hex" && (f.role === "src_id" || f.role === "dst_id")
-      ? deviceOptions(f, nodes, snItems, curNodeId)
-      : [];
+  const deviceChoices = isDeviceField(f) && f.role !== "session" && !computedLabel
+    ? devices.flatMap(device => {
+        try { const value = deviceFieldValue(f, device); return [{ device, value, label: `${device.name} · ${value} · ${device.systemName}` }]; }
+        catch { return []; } // Width/type incompatible profiles are never truncated into the field.
+      }) : [];
+  const choices = [
+    ...deviceChoices,
+    ...dictItems.map(item => ({ value: item.value, label: dictItemLabel(item.value, item.label), device: undefined })),
+  ];
   return (
     <div className={cn("grid min-w-0 content-start gap-1", f.len > 32 && "col-span-full")}>
       <Label htmlFor={`f-${f.name}`} className="flex min-w-0 items-baseline gap-1 text-xs leading-5">
@@ -227,32 +161,24 @@ function FieldInput({
           {f.len}B{f.enc !== "hex" && ` · ${encLabel[f.enc]}`}
         </span>
       </Label>
-      {readOnly || computedLabel ? (
+      {computedLabel ? (
         <Input
           id={`f-${f.name}`}
           className="h-8 font-mono text-xs"
           value={computedLabel ?? value}
           readOnly
         />
-      ) : isDeviceSn ? (
+      ) : deviceChoices.length > 0 ? (
         <ComboInput
           id={`f-${f.name}`}
           value={value}
-          suggestions={snItems
-            .filter((it) => it.value.length === f.len * 2)
-            .map((it) => ({
-              value: spacedHex(it.value),
-              label: `${it.label} · ${spacedHex(it.value)}`,
-            }))}
-          placeholder="选择设备或输入序列号"
-          onChange={(e) => onChange(e.target.value)}
-        />
-      ) : devOpts.length > 0 ? (
-        <ComboInput
-          id={`f-${f.name}`}
-          value={value}
-          suggestions={devOpts}
-          placeholder="下拉选设备, 或直接输入"
+          suggestions={choices}
+          placeholder="选择设备或手动填写"
+          onSelectSuggestion={index => {
+            const choice = choices[index];
+            if (choice.device) onDeviceSelect(choice.device);
+            else onChange(choice.value);
+          }}
           onChange={(e) => onChange(e.target.value)}
         />
       ) : f.dict ? (
@@ -301,6 +227,7 @@ function FieldInput({
   );
 }
 export function SimulationConsole() {
+  const flowTracker=useRef<FlowConsoleTrackerHandle>(null);
   const { active } = useContext(WorkspaceActivityContext);
   const [nodes, setNodes] = useState<Node[]>([]);
   const [protocols, setProtocols] = useState<Protocol[]>([]);
@@ -313,7 +240,7 @@ export function SimulationConsole() {
   const [group, setGroup] = useState<string>("all");
   const [protocolId, setProtocolId] = useState("");
   const [terminals, setTerminals] = useState<TerminalProfile[]>([]);
-  const [terminalId, setTerminalId] = useState("");
+  const [deviceSelection, setDeviceSelection] = useState<{ key: string; id: number } | null>(null);
   useEffect(() => {
     const reload = () => {
       void listTerminals()
@@ -341,10 +268,9 @@ export function SimulationConsole() {
   const [monitorOpen, setMonitorOpen] = useState(true);
   // 业务流程一键运行
   const [flows, setFlows] = useState<FlowRow[]>([]);
-  const [flowBusy, setFlowBusy] = useState<number | null>(null);
   useEffect(() => {
-    listFlows().then(setFlows).catch(() => setFlows([]));
-  }, []);
+    if (active) listFlows().then(setFlows).catch(() => setFlows([]));
+  }, [active]);
   // 周期发送
   const [interval, setIntervalMs] = useState("2000");
   const { engine, refreshEngine, logs, paused, setPaused, clearScreen } =
@@ -416,17 +342,9 @@ export function SimulationConsole() {
     (curGroupId != null
       ? (nodes.find((n) => bindsOf(n).includes(curGroupId)) ?? null)
       : null);
-  const availableTerminals = terminals.filter(
-    (t) =>
-      t.node_ref === curNode?.id &&
-      t.system_ref === (curProtocol?.system_ref ?? -1),
-  );
   const systemFlows = useMemo(
     () => flows.filter((f) => f.system_ref === (systemId === "all" ? f.system_ref : Number(systemId))),
     [flows, systemId],
-  );
-  const activeTerminal = availableTerminals.find(
-    (t) => String(t.id) === terminalId,
   );
   /** 协议所属分组: 公共头锚定在分组（严格隔离） */
   const curGroup = useMemo(
@@ -466,11 +384,10 @@ export function SimulationConsole() {
     [headFields, bodyFields],
   );
   const identityField =
-    frameFields.find((f) => f.role === "src_id") ??
-    frameFields.find((f) => f.role === "device_sn");
+    frameFields.find((f) => f.role === "src_id" || f.role === "device_sn");
   const schemaKey = useMemo(() => packetSchemaKey(frameFields), [frameFields]);
-  const draftKey = `${curNode?.id ?? ""}:${protocolId}:${activeTerminal?.id ?? ""}:${schemaKey}`;
-  const listDraftKey = `${draftKey}:${activeTerminal?.fields_json ?? ""}`;
+  const draftKey = `${curNode?.id ?? ""}:${protocolId}:${schemaKey}`;
+  const listDraftKey = draftKey;
   const listDrafts = useRef<{ key: string; rows: Record<string, ListEntry[]> }>({
     key: "", rows: {},
   });
@@ -486,12 +403,8 @@ export function SimulationConsole() {
           .filter((f) => !f.value.includes("{"))
           .map((f) => [f.name, defaultFieldValue(f, scopedDicts)]),
       ),
-      ...mappedFieldValues(
-        frameFields,
-        parseProperties(activeTerminal?.fields_json),
-      ),
     }),
-    [frameFields, scopedDicts, activeTerminal?.fields_json],
+    [frameFields, scopedDicts],
   );
   const fieldValues = useMemo(
     () => ({ ...baseline, ...overrides }),
@@ -527,28 +440,20 @@ export function SimulationConsole() {
    *  {node_id}→通道节点ID / {session}→节点当前会话 / 其余内置变量→空(placeholder 提示自动) */
   const fieldDisplay = useCallback(
     (f: ProtocolField): string => {
-      if (activeTerminal && f === identityField)
-        return activeTerminal.device_key;
-      if (activeTerminal && f.role === "session")
-        return activeTerminal.session_hex ?? "";
       const ov = fieldValues[f.name];
       if (ov !== undefined) return ov;
       const v = f.value.trim();
       if (v === "{node_id}") return curNode?.node_id_hex ?? "";
-      if (v === "{session}")
-        return activeTerminal?.session_hex
-          ? spacedHex(
-              activeTerminal.session_hex.replace(/\s+/g, "").toUpperCase(),
-            )
-          : "";
+      if (v === "{session}") return "";
       if (AUTO_VAR_RE.test(v)) return "";
       return f.value;
     },
-    [fieldValues, curNode, activeTerminal, identityField],
+    [fieldValues, curNode],
   );
   /** 修改字段值: 清空则删除覆盖键, 回退定义值（node_id 字段回到跟随通道） */
   const setFieldValue = useCallback(
     (name: string, v: string) => {
+      if (name === identityField?.name) setDeviceSelection(null);
       setCommandDraft((prev) => {
         const values = prev.key === draftKey ? prev.values : {};
         if ((values[name] ?? baseline[name] ?? "") === v) return prev;
@@ -559,15 +464,27 @@ export function SimulationConsole() {
         return { key: draftKey, values: next };
       });
     },
-    [draftKey, baseline],
+    [draftKey, baseline, identityField?.name],
   );
-  const snArchive = useMemo(
-    () =>
-      terminals
-        .filter((t) => t.system_ref === (curProtocol?.system_ref ?? -1))
-        .map((t) => ({ value: t.device_key, label: t.name })),
-    [terminals, curProtocol?.system_ref],
-  );
+  const deviceSources = useMemo<DeviceFieldSource[]>(() => terminals.map(t => {
+    const schemas = protocols.filter(p => p.system_ref === t.system_ref)
+      .sort((a, b) => Number(b.protocol_id === t.protocol_ref) - Number(a.protocol_id === t.protocol_ref));
+    return {
+      id: t.id, name: t.name, address: t.device_key, properties: parseProperties(t.fields_json),
+      systemName: systems.find(s => s.id === t.system_ref)?.name ?? `系统 #${t.system_ref}`,
+      fields: schemas.flatMap(p => protocolFrame(p, groups.find(g => g.id === p.group_ref)).fields),
+    };
+  }), [terminals, protocols, groups, systems]);
+  const selectFieldDevice = (field: ProtocolField, device: DeviceFieldSource) => {
+    try {
+      const values = deviceSelectionValues(field, device, frameFields);
+      setCommandDraft(prev => ({ key: draftKey, values: { ...(prev.key === draftKey ? prev.values : {}), ...values } }));
+      if (field === identityField) setDeviceSelection({ key: draftKey, id: device.id });
+    } catch (error) { toast.error(`无法填入 ${device.name}：${(error as Error).message}`); }
+  };
+  // Automatic flow execution can use a selected sender only in its own channel/system.
+  const flowTerminal = deviceSelection?.key === draftKey ? terminals.find(t =>
+    t.id === deviceSelection.id && t.node_ref === curNode?.id && t.system_ref === curProtocol?.system_ref) : undefined;
   const buildParams = (): Record<string, string> | null => {
     if (schemaError) { toast.error(schemaError); return null; }
     let params: Record<string, string>;
@@ -578,11 +495,6 @@ export function SimulationConsole() {
     } catch (error) {
       toast.error(String(error));
       return null;
-    }
-    if (activeTerminal) {
-      params.__terminal_id = String(activeTerminal.id);
-      for (const f of frameFields)
-        if (f === identityField || f.role === "session") delete params[f.name];
     }
     return params;
   };
@@ -613,6 +525,7 @@ export function SimulationConsole() {
     if (!params) return;
     setSending(true);
     try {
+      await flowTracker.current?.beforeSend(curProtocol.protocol_id);
       const r = await sendUdpMessage(
         curNode.id,
         curProtocol.protocol_id,
@@ -642,6 +555,7 @@ export function SimulationConsole() {
         }
         const params = buildParams();
         if (!params) return;
+        await flowTracker.current?.beforeSend(curProtocol.protocol_id);
         await startPeriodicSend(
           curNode.id,
           curProtocol.protocol_id,
@@ -658,29 +572,6 @@ export function SimulationConsole() {
       toast.error("操作失败", { description: String(e) });
     } finally {
       setPeriodicBusy(false);
-    }
-  };
-  // 业务流程一键运行(选中的设备; 未选设备 = 该系统全部设备)
-  const runFlow = async (flow: FlowRow) => {
-    try {
-      const ids = activeTerminal ? [activeTerminal.id] : availableTerminals.map((t) => t.id);
-      if (!ids.length) return toast.error("该系统下没有设备, 请先在设备管理中添加");
-      const runId = await startFlowRun(flow.id, ids);
-      setFlowBusy(runId);
-      toast.success(`流程「${flow.name}」开始运行, 轨迹见监控与业务流程页`);
-      const un = await listen<FlowRunEvent>("flow-run", (ev) => {
-        if (ev.payload.run_id !== runId) return;
-        const st = ev.payload;
-        if (["done", "error", "aborted"].includes(st.status)) {
-          if (st.status === "done") toast.success(`流程「${flow.name}」执行完成`);
-          else toast.error(`流程「${flow.name}」${st.note}`);
-          setFlowBusy(null);
-          un();
-        }
-      });
-    } catch (e) {
-      toast.error("流程运行失败", { description: String(e) });
-      setFlowBusy(null);
     }
   };
 
@@ -745,17 +636,16 @@ export function SimulationConsole() {
                   </SelectContent>
                 </Select>
               </div>
-              <label className="grid min-w-0 gap-2 text-sm font-medium">
-                通道
+              <div className="grid min-w-0 gap-2">
+                <Label htmlFor="console-通道">通道</Label>
                 <UXSelect
                   disabled={!matchingNodes.length}
                   value={String(curNode?.id ?? "") || "__empty__"}
                   onValueChange={(value) => {
                     setChannelId(value === "__empty__" ? "" : value);
-                    setTerminalId("");
                   }}
                 >
-                  <UXSelectTrigger aria-label="业务通道" className="h-9">
+                  <UXSelectTrigger id="console-通道" aria-label="业务通道">
                     <UXSelectValue />
                   </UXSelectTrigger>
                   <UXSelectContent>
@@ -774,71 +664,9 @@ export function SimulationConsole() {
                     ))}
                   </UXSelectContent>
                 </UXSelect>
-              </label>
-              <label className="grid min-w-0 gap-2 text-sm font-medium">
-                设备
-                <UXSelect
-                  value={String(activeTerminal?.id ?? "") || "__empty__"}
-                  onValueChange={(value) =>
-                    setTerminalId(value === "__empty__" ? "" : value)
-                  }
-                >
-                  <UXSelectTrigger aria-label="设备" className="h-9">
-                    <UXSelectValue />
-                  </UXSelectTrigger>
-                  <UXSelectContent>
-                    <UXSelectItem value={String("") || "__empty__"}>
-                      手动填写
-                    </UXSelectItem>
-                    {availableTerminals.map((t) => (
-                      <UXSelectItem
-                        key={t.id}
-                        value={String(t.id) || "__empty__"}
-                      >
-                        {t.name} · {t.device_key}
-                      </UXSelectItem>
-                    ))}
-                  </UXSelectContent>
-                </UXSelect>
-              </label>
-              <div className="grid gap-2">
-                <Label htmlFor="console-流程">业务流程</Label>
-                <div className="flex items-center gap-2">
-                  <UXSelect value="" onValueChange={(v) => {
-                    const f = flows.find((x) => String(x.id) === v);
-                    if (f) void runFlow(f);
-                  }}>
-                    <UXSelectTrigger id="console-流程" className="h-9" aria-label="运行业务流程">
-                      <UXSelectValue placeholder={systemFlows.length ? "选择流程一键运行" : "当前系统暂无流程"} />
-                    </UXSelectTrigger>
-                    <UXSelectContent>
-                      {systemFlows.map((f) => (
-                        <UXSelectItem key={f.id} value={String(f.id)}>
-                          {f.name}（{f.steps.length} 步）
-                        </UXSelectItem>
-                      ))}
-                    </UXSelectContent>
-                  </UXSelect>
-                  {flowBusy != null && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0"
-                      onClick={async () => {
-                        try {
-                          await stopFlowRun(flowBusy);
-                          setFlowBusy(null);
-                        } catch (e) {
-                          toast.error(String(e));
-                        }
-                      }}
-                    >
-                      停止流程
-                    </Button>
-                  )}
-                </div>
               </div>
             </div>
+            <FlowConsoleTracker ref={flowTracker} flows={systemFlows} protocolId={protocolId} nodeId={curNode?.id} terminalIds={flowTerminal ? [flowTerminal.id] : []} protocols={protocols} groups={groups}/>
 
             {/* 选中协议信息 + 字段表单 */}
             {curProtocol ? (
@@ -855,11 +683,6 @@ export function SimulationConsole() {
                       当前分组未绑定通道, 无法发送 —
                       到「通道管理」编辑通道勾选本分组
                     </span>
-                  )}
-                  {activeTerminal && (
-                    <Badge variant="outline">
-                      Session {activeTerminal.session_hex || "未注册"}
-                    </Badge>
                   )}
                   {curProtocol.system_name && (
                     <Badge variant="outline">
@@ -911,13 +734,8 @@ export function SimulationConsole() {
                             f={f}
                             value={fieldDisplay(f)}
                             dicts={scopedDicts}
-                            nodes={nodes}
-                            curNodeId={curNode ? curNode.id : null}
-                            snArchive={snArchive}
-                            readOnly={
-                              !!activeTerminal &&
-                              (f === identityField || f.role === "session")
-                            }
+                            devices={deviceSources}
+                            onDeviceSelect={device => selectFieldDevice(f, device)}
                             onChange={(v) => setFieldValue(f.name, v)}
                           />
                         ))}
@@ -935,7 +753,7 @@ export function SimulationConsole() {
                   ) : (
                     <div className="space-y-3">
                       <FieldBranches
-                        key={protocolId + ":" + terminalId}
+                        key={draftKey}
                         fields={bodyFields.map((f) => ({
                           name: f.name,
                           value: fieldDisplay(f),
@@ -968,7 +786,7 @@ export function SimulationConsole() {
                               onDraftChange={(name, rows) => {
                                 listDrafts.current.rows[name] = rows;
                               }}
-                              resetKey={activeTerminal?.fields_json ?? ""}
+                              resetKey={draftKey}
                               dicts={scopedDicts}
                               onChange={setFieldValue}
                             />
@@ -978,13 +796,8 @@ export function SimulationConsole() {
                                 f={f}
                                 value={fieldDisplay(f)}
                                 dicts={scopedDicts}
-                                nodes={nodes}
-                                curNodeId={curNode?.id}
-                                snArchive={snArchive}
-                                readOnly={
-                                  !!activeTerminal &&
-                                  (f === identityField || f.role === "session")
-                                }
+                            devices={deviceSources}
+                            onDeviceSelect={device => selectFieldDevice(f, device)}
                                 onChange={(v) => setFieldValue(f.name, v)}
                               />
                             </div>

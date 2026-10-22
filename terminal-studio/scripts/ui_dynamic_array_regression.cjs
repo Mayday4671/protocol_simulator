@@ -98,7 +98,7 @@ const assert = require('node:assert/strict');
     assert.ok(saved, 'literal array defaults must survive protocol save validation');
     assert.equal(saved.args.payload.fields.find(f => f.name === '设备配置条目').value, '01110222033304440555');
     await page.getByTitle('编辑', { exact: true }).click();
-    const definitionValue = name => page.locator(`input[placeholder="字段名"][value="${name}"]`).locator('..').getByPlaceholder('十六进制, 如 FF A1 / 留空补 0', { exact: true });
+    const definitionValue = name => page.getByLabel(`字段值：${name}`, { exact: true });
     const savesBefore = await page.evaluate(() => window.__testCalls.filter(c => c.cmd === 'upsert_protocol').length);
     await definitionValue('条目数').fill('0102');
     await page.getByRole('button', { name: '保存', exact: true }).click();

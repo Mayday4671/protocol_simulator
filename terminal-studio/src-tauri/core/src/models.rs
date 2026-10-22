@@ -651,6 +651,7 @@ pub struct HeartbeatView {
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct LogRecord {
     pub id: i64,
+    pub send_after_log_id: Option<i64>,
     pub ts: String,
     pub direction: Direction,
     pub node_ref: Option<i64>,
@@ -733,6 +734,7 @@ pub struct EngineStatus {
 pub struct SendResult {
     pub bytes: usize,
     pub hex: String,
+    pub log_id: i64,
 }
 
 /// Markdown 导入结果

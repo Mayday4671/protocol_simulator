@@ -1,0 +1,51 @@
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+(async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ const page=await browser.newPage({viewport:{width:1400,height:900}});page.setDefaultTimeout(5000);
+ page.on('pageerror',e=>console.error(e.message));
+ await page.route('**/__flow_link',r=>r.fulfill({contentType:'text/html',body:`<!doctype html><html><head><meta charset="utf-8"></head><body><div id="root"></div><script type="module">
+ import R from '/@react-refresh';R.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;window.__vite_plugin_react_preamble_installed__=true;
+ const {default:React}=await import('/node_modules/.vite/deps/react.js');const {default:ReactDOM}=await import('/node_modules/.vite/deps/react-dom_client.js');
+ window.runs=[];window.calls=[];
+ window.__TAURI_INTERNALS__={invoke:async(c,a)=>{window.calls.push([c,a]);if(c==='flow_traces')return structuredClone(window.runs.filter(t=>t.flow.id===a.flowId));if(c==='start_flow_run'){const id=window.runs.length+1;window.runs.unshift({run_id:id,flow:window.flows.find(f=>f.id===a.flowId),node_id:a.nodeId,node_name:'通道',manual:a.manual,started_at:Date.now(),ended_at:null,status:'running',events:[],transitions:[],step_states:{}});return id;}return [];}};
+ await import('/src/styles/globals.css');const {FlowConsoleTracker}=await import('/src/components/flows/FlowConsoleTracker.tsx');
+ const step=(id,p,ack)=>({id,name:id,protocol_id:p,expect_protocol:ack});
+ window.a={id:1,name:'设备接入流程',steps:[step('注册','q','r'),step('心跳','h','ha')],trigger_protocols:[]};
+ window.b={id:2,name:'设备查询流程',steps:[step('查询','x','xa'),step('共享心跳','h','ha')],trigger_protocols:[]};
+ window.c={id:3,name:'另一注册流程',steps:[step('注册变体','q','r')],trigger_protocols:[]};
+ window.flows=[window.a,window.b];window.tracker=React.createRef();const root=ReactDOM.createRoot(document.getElementById('root'));
+ window.mount=(protocolId,nodeId=1,flows=window.flows)=>{window.flows=flows;root.render(React.createElement(FlowConsoleTracker,{ref:window.tracker,protocolId,nodeId,flows,terminalIds:[],protocols:[],groups:[]}));};window.mount('q');
+ </script></body></html>`}));
+ try{
+  await page.goto('http://127.0.0.1:1426/__flow_link');
+  await page.getByRole('button',{name:'展开流程进度',exact:true}).click();
+  await page.locator('[data-current-flow="1"]').waitFor();
+  assert.equal(await page.getByLabel('控制台测试流程').count(),0,'Unique match should have no flow picker');
+  await page.evaluate(()=>window.mount('r'));await page.locator('[data-current-flow="1"]').waitFor();
+  await page.evaluate(()=>window.mount('x'));await page.locator('[data-current-flow="2"]').waitFor();
+  await page.evaluate(()=>window.mount('h'));await page.getByLabel('控制台测试流程').waitFor();
+  assert.equal(await page.getByLabel('控制台测试流程').inputValue(),'2','Shared next signal keeps current flow');
+  await page.getByLabel('控制台测试流程').selectOption('1');
+  await page.evaluate(()=>window.mount('q'));
+  await page.getByRole('button',{name:'收起流程进度',exact:true}).click();
+  await page.evaluate(()=>window.tracker.current.beforeSend('q'));
+  assert.equal(await page.evaluate(()=>window.calls.filter(([c])=>c==='start_flow_run').length),1,'Sending auto-resolved first signal starts observation');
+  await page.evaluate(()=>window.mount('x'));
+  await page.getByRole('button',{name:'展开流程进度',exact:true}).click();
+  await page.locator('[data-current-flow="1"]').waitFor();
+  assert.equal(await page.getByLabel('控制台测试流程').count(),0,'Running flow stays pinned');
+  await page.evaluate(()=>window.mount('x',2));await page.locator('[data-current-flow="2"]').waitFor();
+  await page.evaluate(()=>window.mount('q',1));await page.locator('[data-current-flow="1"]').waitFor();
+  await page.evaluate(()=>{window.runs[0].ended_at=Date.now();window.runs[0].status='done';window.mount('x');});
+  await page.locator('[data-current-flow="2"]').waitFor();
+  await page.evaluate(()=>window.mount('none'));await page.getByText('当前信令未关联流程',{exact:true}).waitFor();
+  assert.equal(await page.locator('.flow-timeline-step').count(),0);
+  await page.evaluate(()=>window.mount('q',3,[window.a,window.c]));
+  await page.getByLabel('控制台测试流程').waitFor();
+  assert.equal(await page.getByLabel('控制台测试流程').inputValue(),'0','Ambiguous first use must not guess');
+  assert.equal(await page.getByLabel('控制台测试流程').locator('option').count(),3,'Only matching flows are offered');
+  await page.getByLabel('控制台测试流程').selectOption('3');await page.locator('.flow-timeline-step').first().waitFor();
+  console.log('PASS automatic protocol/response mapping, ambiguity, active pin, channel isolation, completion unlock and unassociated protocol');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
